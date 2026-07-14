@@ -97,14 +97,27 @@ const BankReconcileApp = () => {
           if (!docNo || docNo === 'รวม') return null;
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
           if (isExpense && amount > 0) amount = -amount;
-          return { id: `peak-${Date.now()}-${index}-${Math.random()}`, docNo, date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), description: item['คำอธิบาย'] || '', status: item['สถานะ'] || '', amount };
+          return { 
+            id: `peak-${Date.now()}-${index}-${Math.random()}`, 
+            docNo, 
+            date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), 
+            description: item['คำอธิบาย'] || '', 
+            status: item['สถานะ'] || '', 
+            amount 
+          };
         } else {
           const dateVal = item['วันที่'];
           const amountVal = item['ถอนเงิน/ฝากเงิน'];
           if (!dateVal || amountVal === undefined || amountVal === null || amountVal === "") return null;
           let amount = parseFloat(String(amountVal).replace(/[( )]/g, '').replace(/,/g, ''));
           if (String(amountVal).includes('(')) amount = -Math.abs(amount);
-          return { id: `bank-${Date.now()}-${index}-${Math.random()}`, docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, date: formatExcelDate(dateVal), amount };
+          return { 
+            id: `bank-${Date.now()}-${index}-${Math.random()}`, 
+            index: index, // สำคัญ: ใช้สำหรับเรียงลำดับตอน Export
+            docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, 
+            date: formatExcelDate(dateVal), 
+            amount 
+          };
         }
       }).filter(i => i !== null && !isNaN(i.amount) && i.amount !== 0);
 
@@ -134,73 +147,104 @@ const BankReconcileApp = () => {
     }
   };
 
-  // --- Export Logic with ExcelJS (Top-Left Alignment) ---
-  const exportToExcel = async () => {
-    if (confirmedMatches.length === 0) return alert("ไม่มีรายการที่จะ Export");
+  // --- Export Logic ---
+ const exportToExcel = async () => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Report');
 
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Reconcile_Report');
+  // 1. กำหนดหัวตาราง
+  const headers = ["#", "วันที่ออก", "กระทบยอด", "หมายเหตุ", "เงินเข้า", "เงินออก", "สถานะ"];
+  const headerRow = worksheet.addRow(headers);
+  
+  // ใส่เส้นขอบและสีให้หัวตารางทุกช่อง (1 ถึง 7)
+  for (let i = 1; i <= 7; i++) {
+    const cell = headerRow.getCell(i);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+    cell.font = { bold: true, name: 'Sarabun' };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+  }
 
-    const headers = ["Matching_ID", "วันที่(บัญชี)", "เลขที่เอกสาร", "ยอดเงินบัญชี", "วันที่(ธนาคาร)", "รายการธนาคาร", "ยอดเงินธนาคาร"];
-    const headerRow = worksheet.addRow(headers);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-
-    const now = new Date();
-    const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, '0') + now.getDate().toString().padStart(2, '0');
-    const numFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
-
-    let currentRow = 2;
-
-    confirmedMatches.forEach((match, matchIdx) => {
-      const numRows = Math.max(match.internals.length, match.banks.length);
-      const stmId = `STM-${dateStr}${String(matchIdx + 1).padStart(3, '0')}`;
-
-      for (let i = 0; i < numRows; i++) {
-        const rowData = [
-          i === 0 ? stmId : "", 
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].date : "") : (match.internals[i]?.date || ""),
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].docNo : "") : (match.internals[i]?.docNo || ""),
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].amount : null) : (match.internals[i]?.amount || null),
-          match.banks.length === 1 ? (i === 0 ? match.banks[0].date : "") : (match.banks[i]?.date || ""),
-          match.banks.length === 1 ? (i === 0 ? match.banks[0].docNo : "") : (match.banks[i]?.docNo || ""),
-          match.banks.length === 1 ? (i === 0 ? match.banks[0].amount : null) : (match.banks[i]?.amount || null)
-        ];
-        
-        const newRow = worksheet.addRow(rowData);
-        newRow.eachCell((cell) => {
-          cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-        });
-        newRow.getCell(4).numFmt = numFormat;
-        newRow.getCell(7).numFmt = numFormat;
-      }
-
-      const endRow = currentRow + numRows - 1;
-      worksheet.mergeCells(`A${currentRow}:A${endRow}`);
-      if (match.internals.length === 1 && numRows > 1) {
-        worksheet.mergeCells(`B${currentRow}:B${endRow}`);
-        worksheet.mergeCells(`C${currentRow}:C${endRow}`);
-        worksheet.mergeCells(`D${currentRow}:D${endRow}`);
-      }
-      if (match.banks.length === 1 && numRows > 1) {
-        worksheet.mergeCells(`E${currentRow}:E${endRow}`);
-        worksheet.mergeCells(`F${currentRow}:F${endRow}`);
-        worksheet.mergeCells(`G${currentRow}:G${endRow}`);
-      }
-      currentRow += numRows;
+  // 2. เตรียมข้อมูลและเรียงลำดับ
+  const combinedData = [];
+  confirmedMatches.forEach(match => {
+    const peakDocs = match.internals.map(i => i.docNo).join(', ');
+    match.banks.forEach(bankItem => {
+      combinedData.push({ ...bankItem, matchedDocNo: peakDocs, status: "กระทบยอดแล้ว" });
     });
+  });
+  bankStatement.forEach(bankItem => {
+    combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" });
+  });
 
-    worksheet.columns = [{ width: 20 }, { width: 12 }, { width: 20 }, { width: 15 }, { width: 12 }, { width: 45 }, { width: 15 }];
+  combinedData.sort((a, b) => a.index - b.index);
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `Reconcile_Export_${dateStr}.xlsx`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
+  // 3. เขียนข้อมูลลงตาราง
+  const numFormat = '#,##0.00;[Red](#,##0.00)';
+  
+  combinedData.forEach((entry, idx) => {
+    const row = worksheet.addRow([
+      idx + 1,
+      entry.date,
+      entry.matchedDocNo,
+      entry.docNo,
+      entry.amount > 0 ? entry.amount : null,
+      entry.amount < 0 ? Math.abs(entry.amount) : null,
+      entry.status
+    ]);
+
+    // *** จุดสำคัญ: ใช้ Loop 1 ถึง 7 เพื่อใส่เส้นขอบให้ "ทุกช่อง" แม้ไม่มีข้อมูล ***
+    for (let i = 1; i <= 7; i++) {
+      const cell = row.getCell(i);
+      
+      // ใส่เส้นขอบทุกช่อง
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      // ตั้งค่าไม่ให้ Wrap Text และจัดวางแนวตั้งให้อยู่ด้านบน
+      cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: false };
+
+      // จัดการรูปแบบเฉพาะคอลัมน์
+      if (i === 1) cell.alignment.horizontal = 'center'; // ลำดับ #
+      
+      if (i === 5 || i === 6) { // เงินเข้า / เงินออก
+        cell.numFmt = numFormat;
+        cell.alignment.horizontal = 'right';
+      }
+
+      if (i === 7) { // สถานะ
+        if (entry.status === "ยังไม่กระทบยอด") {
+          cell.font = { color: { argb: 'FFFF0000' }, bold: true };
+        } else {
+          cell.font = { color: { argb: 'FF008000' } };
+        }
+      }
+    }
+  });
+
+  // กำหนดความกว้างคอลัมน์
+  worksheet.columns = [
+    { width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 15 }, { width: 15 }, { width: 18 }
+  ];
+
+  // 4. บันทึกและดาวน์โหลด
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Bank_Reconcile_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+  a.click();
+};
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
