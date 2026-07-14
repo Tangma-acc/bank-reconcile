@@ -262,8 +262,6 @@ const BankReconcileApp = () => {
                     <Download size={16} /> EXPORT EXCEL REPORT
                 </button>
               )}
-              <button onClick={() => {const s=localStorage.getItem('rv1'); if(s){const d=JSON.parse(s); setInternalRecords(d.i); setBankStatement(d.b); setConfirmedMatches(d.m); alert('โหลดร่างแล้ว');}}} className="text-blue-600 font-bold text-xs px-4 py-2 hover:bg-blue-50 transition-all border border-blue-50 rounded-xl">โหลดร่าง</button>
-              <button onClick={() => {localStorage.setItem('rv1', JSON.stringify({i:internalRecords,b:bankStatement,m:confirmedMatches})); alert('บันทึกร่างแล้ว');}} className="text-emerald-600 font-bold text-xs px-4 py-2 hover:bg-emerald-50 transition-all border border-emerald-50 rounded-xl">บันทึกร่าง</button>
               <button onClick={() => window.location.reload()} className="text-slate-400 font-bold text-xs px-4 py-2 hover:text-red-500 rounded-xl transition-all">ล้างข้อมูล</button>
            </div>
         </div>
