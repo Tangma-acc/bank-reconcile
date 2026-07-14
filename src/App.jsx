@@ -104,7 +104,13 @@ const BankReconcileApp = () => {
           if (!dateVal || amountVal === undefined || amountVal === null || amountVal === "") return null;
           let amount = parseFloat(String(amountVal).replace(/[( )]/g, '').replace(/,/g, ''));
           if (String(amountVal).includes('(')) amount = -Math.abs(amount);
-          return { id: `bank-${Date.now()}-${index}-${Math.random()}`, docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, date: formatExcelDate(dateVal), amount };
+          return { 
+            id: `bank-${Date.now()}-${index}-${Math.random()}`, 
+            index: index, // เก็บตำแหน่งบรรทัดเดิม
+            docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, 
+            date: formatExcelDate(dateVal), 
+            amount 
+          };
         }
       }).filter(i => i !== null && !isNaN(i.amount) && i.amount !== 0);
 
@@ -134,93 +140,97 @@ const BankReconcileApp = () => {
     }
   };
 
-  // --- Export Logic with ExcelJS (Top-Left Alignment) ---
+  // --- Export Logic ---
   const exportToExcel = async () => {
-    if (confirmedMatches.length === 0) return alert("ไม่มีรายการที่จะ Export");
-
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Reconcile_Report');
+    const worksheet = workbook.addWorksheet('Report');
 
-    const headers = ["Matching_ID", "วันที่(บัญชี)", "เลขที่เอกสาร", "ยอดเงินบัญชี", "วันที่(ธนาคาร)", "รายการธนาคาร", "ยอดเงินธนาคาร"];
+    // 1. หัวตาราง
+    const headers = ["#", "วันที่ออก", "กระทบยอด", "หมายเหตุ", "เงินเข้า", "เงินออก", "สถานะ"];
     const headerRow = worksheet.addRow(headers);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    
+    for (let i = 1; i <= 7; i++) {
+      const cell = headerRow.getCell(i);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+      cell.font = { bold: true, name: 'Sarabun' };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+      cell.border = {
+        top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
+      };
+    }
 
-    const now = new Date();
-    const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, '0') + now.getDate().toString().padStart(2, '0');
-    const numFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
-
-    let currentRow = 2;
-
-    confirmedMatches.forEach((match, matchIdx) => {
-      const numRows = Math.max(match.internals.length, match.banks.length);
-      const stmId = `STM-${dateStr}${String(matchIdx + 1).padStart(3, '0')}`;
-
-      for (let i = 0; i < numRows; i++) {
-        const rowData = [
-          i === 0 ? stmId : "", 
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].date : "") : (match.internals[i]?.date || ""),
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].docNo : "") : (match.internals[i]?.docNo || ""),
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].amount : null) : (match.internals[i]?.amount || null),
-          match.banks.length === 1 ? (i === 0 ? match.banks[0].date : "") : (match.banks[i]?.date || ""),
-          match.banks.length === 1 ? (i === 0 ? match.banks[0].docNo : "") : (match.banks[i]?.docNo || ""),
-          match.banks.length === 1 ? (i === 0 ? match.banks[0].amount : null) : (match.banks[i]?.amount || null)
-        ];
-        
-        const newRow = worksheet.addRow(rowData);
-        newRow.eachCell((cell) => {
-          cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-        });
-        newRow.getCell(4).numFmt = numFormat;
-        newRow.getCell(7).numFmt = numFormat;
-      }
-
-      const endRow = currentRow + numRows - 1;
-      worksheet.mergeCells(`A${currentRow}:A${endRow}`);
-      if (match.internals.length === 1 && numRows > 1) {
-        worksheet.mergeCells(`B${currentRow}:B${endRow}`);
-        worksheet.mergeCells(`C${currentRow}:C${endRow}`);
-        worksheet.mergeCells(`D${currentRow}:D${endRow}`);
-      }
-      if (match.banks.length === 1 && numRows > 1) {
-        worksheet.mergeCells(`E${currentRow}:E${endRow}`);
-        worksheet.mergeCells(`F${currentRow}:F${endRow}`);
-        worksheet.mergeCells(`G${currentRow}:G${endRow}`);
-      }
-      currentRow += numRows;
+    // 2. รวบรวมข้อมูลตาม Statement
+    const combinedData = [];
+    confirmedMatches.forEach(match => {
+      const peakDocs = match.internals.map(i => i.docNo).join(', ');
+      match.banks.forEach(bankItem => {
+        combinedData.push({ ...bankItem, matchedDocNo: peakDocs, status: "กระทบยอดแล้ว" });
+      });
+    });
+    bankStatement.forEach(bankItem => {
+      combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" });
     });
 
-    worksheet.columns = [{ width: 20 }, { width: 12 }, { width: 20 }, { width: 15 }, { width: 12 }, { width: 45 }, { width: 15 }];
+    // เรียงตาม Index จริง
+    combinedData.sort((a, b) => a.index - b.index);
+
+    // 3. เขียนข้อมูล
+    const numFormat = '#,##0.00;[Red](#,##0.00)';
+    combinedData.forEach((entry, idx) => {
+      const row = worksheet.addRow([
+        idx + 1,
+        entry.date,
+        entry.matchedDocNo,
+        entry.docNo,
+        entry.amount > 0 ? entry.amount : null,
+        entry.amount < 0 ? Math.abs(entry.amount) : null,
+        entry.status
+      ]);
+
+      // ใส่เส้นขอบและรูปแบบให้ครบทุกช่อง (1-7)
+      for (let i = 1; i <= 7; i++) {
+        const cell = row.getCell(i);
+        cell.border = {
+          top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
+        };
+        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: false };
+
+        if (i === 1) cell.alignment.horizontal = 'center';
+        if (i === 5 || i === 6) {
+          cell.numFmt = numFormat;
+          cell.alignment.horizontal = 'right';
+        }
+        if (i === 7) {
+          if (entry.status === "ยังไม่กระทบยอด") {
+            cell.font = { color: { argb: 'FFFF0000' }, bold: true };
+          } else {
+            cell.font = { color: { argb: 'FF008000' } };
+          }
+        }
+      }
+    });
+
+    worksheet.columns = [
+      { width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 15 }, { width: 15 }, { width: 18 }
+    ];
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `Reconcile_Export_${dateStr}.xlsx`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Bank_Reconcile_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.click();
   };
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
         
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border">
            <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
-           <div className="flex gap-2 items-center">
-              {/* ย้ายปุ่ม EXPORT EXCEL มาไว้ที่นี่ (กรอบสีแดงในรูป) */}
-              {activeTab === 'confirmed' && confirmedMatches.length > 0 && (
-                <button 
-                    onClick={exportToExcel} 
-                    className="flex items-center gap-2 bg-white text-blue-900 border-2 border-blue-900 px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-50 transition-all uppercase tracking-widest shadow-sm"
-                >
-                    <Download size={16} /> EXPORT EXCEL REPORT
-                </button>
-              )}
-              <button onClick={() => {const s=localStorage.getItem('rv1'); if(s){const d=JSON.parse(s); setInternalRecords(d.i); setBankStatement(d.b); setConfirmedMatches(d.m); alert('โหลดร่างแล้ว');}}} className="text-blue-600 font-bold text-xs px-4 py-2 hover:bg-blue-50 transition-all border border-blue-50 rounded-xl">โหลดร่าง</button>
-              <button onClick={() => {localStorage.setItem('rv1', JSON.stringify({i:internalRecords,b:bankStatement,m:confirmedMatches})); alert('บันทึกร่างแล้ว');}} className="text-emerald-600 font-bold text-xs px-4 py-2 hover:bg-emerald-50 transition-all border border-emerald-50 rounded-xl">บันทึกร่าง</button>
+           <div className="flex gap-2">
               <button onClick={() => window.location.reload()} className="text-slate-400 font-bold text-xs px-4 py-2 hover:text-red-500 rounded-xl transition-all">ล้างข้อมูล</button>
            </div>
         </div>
@@ -238,7 +248,13 @@ const BankReconcileApp = () => {
                 {/* ฝั่งซ้าย: PEAK */}
                 <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
                   <div className="p-5 bg-blue-600 text-white space-y-4">
-                    <div className="flex justify-between items-center"><span className="font-black text-[15px] uppercase tracking-widest">รายการบันทึกบัญชี ({internalRecords.length})</span><label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase"><Plus size={12} className="inline mr-1"/>นำเข้า<input type="file" onChange={(e) => handleFileUpload(e, 'internal')} className="hidden" accept=".xlsx, .xls" /></label></div>
+                    <div className="flex justify-between items-center">
+                        <span className="font-black text-[15px] uppercase tracking-widest">รายการบันทึกบัญชี ({internalRecords.length})</span>
+                        <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
+                            <Plus size={12} className="inline mr-1"/>นำเข้า
+                            <input type="file" onChange={(e) => handleFileUpload(e, 'internal')} className="hidden" accept=".xlsx, .xls" />
+                        </label>
+                    </div>
                     <div className="flex gap-2">
                       <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
                       <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-2 text-white/50" /><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /><span className="text-white/50">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" />{(internalStartDate || internalEndDate) && <button onClick={()=>{setInternalStartDate('');setInternalEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
@@ -259,9 +275,15 @@ const BankReconcileApp = () => {
                 {/* ฝั่งขวา: STM */}
                 <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
                   <div className="p-5 bg-slate-800 text-white space-y-4">
-                    <div className="flex justify-between items-center"><span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span><label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase"><Plus size={12} className="inline mr-1"/>นำเข้า<input type="file" onChange={(e) => handleFileUpload(e, 'bank')} className="hidden" accept=".xlsx, .xls" /></label></div>
+                    <div className="flex justify-between items-center">
+                        <span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span>
+                        <label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
+                            <Plus size={12} className="inline mr-1"/>นำเข้า
+                            <input type="file" onChange={(e) => handleFileUpload(e, 'bank')} className="hidden" accept=".xlsx, .xls" />
+                        </label>
+                    </div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
                       <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10"><Calendar size={12} className="text-white/30" /><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /><span className="text-white/10">-</span><input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" />{(bankStartDate || bankEndDate) && <button onClick={()=>{setBankStartDate('');setBankEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
                     </div>
                   </div>
@@ -280,17 +302,16 @@ const BankReconcileApp = () => {
 
               {/* Summary Bottom */}
               <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
-                <div className="text-center group"><div className="text-slate-400 text-[10px] font-black mb-1 uppercase tracking-widest">รวมบัญชี</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{internalSum.toLocaleString(undefined, {minimumFractionDigits: 2})}</div></div>
+                <div className="text-center"><div className="text-slate-400 text-[10px] font-black mb-1 uppercase tracking-widest">รวมบัญชี</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{internalSum.toLocaleString(undefined, {minimumFractionDigits: 2})}</div></div>
                 <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border shadow-inner min-w-[380px]">
                   <div className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">ผลต่างรวม</div>
                   <div className={`text-6xl font-black tabular-nums tracking-tighter ${diff < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>{diff.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                   {diff < 0.01 && internalSum !== 0 && <button onClick={confirmMatch} className="mt-5 bg-blue-600 text-white px-12 py-3.5 rounded-full font-black text-xs hover:bg-blue-700 transition-all flex items-center gap-2 shadow-2xl animate-bounce tracking-widest uppercase">ยืนยันจับคู่ <ArrowRightLeft size={16}/></button>}
                 </div>
-                <div className="text-center group"><div className="text-slate-400 text-[10px] font-black mb-1 uppercase tracking-widest">รวมธนาคาร</div><div className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{bankSum.toLocaleString(undefined, {minimumFractionDigits: 2})}</div></div>
+                <div className="text-center"><div className="text-slate-400 text-[10px] font-black mb-1 uppercase tracking-widest">รวมธนาคาร</div><div className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{bankSum.toLocaleString(undefined, {minimumFractionDigits: 2})}</div></div>
               </div>
             </div>
           ) : (
-            /* รอยืนยัน */
             <div className="flex flex-col h-full gap-6">
               <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-[550px]">
                 <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase tracking-widest"><span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span></div>
@@ -307,7 +328,9 @@ const BankReconcileApp = () => {
                 </div>
               </div>
               <div className="flex justify-end mb-10">
-                 <button onClick={() => {alert('Completed'); setConfirmedMatches([]);}} className="bg-blue-600 text-white px-20 py-4 rounded-[1.5rem] font-black shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all tracking-[0.2em] uppercase text-sm">Finish & Close All</button>
+                <button onClick={exportToExcel} className="flex items-center gap-3 bg-white text-slate-700 border-2 px-10 py-4 rounded-[1.5rem] font-black hover:bg-slate-50 transition-all shadow-sm text-sm uppercase tracking-widest">
+                    <Download size={20} /> Export Excel Report
+                </button>
               </div>
             </div>
           )}
