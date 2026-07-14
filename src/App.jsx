@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, CheckCircle2, RefreshCw, Plus, ArrowRightLeft, Trash2, Save, Download, Search, Calendar, X } from 'lucide-react';
+import { Upload, CheckCircle2, RefreshCw, Plus, ArrowRightLeft, Trash2, Save, Download, CheckSquare, Search, Calendar, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
 const BankReconcileApp = () => {
@@ -141,17 +141,7 @@ const BankReconcileApp = () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Reconcile_Report');
 
-    // 1. กำหนดหัวตารางใหม่ (8 คอลัมน์)
-    const headers = [
-      "Matching_ID", 
-      "วันที่(บัญชี)", 
-      "เลขที่เอกสาร", 
-      "ยอดเงินบัญชี", 
-      "วันที่(ธนาคาร)", 
-      "รายละเอียดธนาคาร", 
-      "รายละเอียดรายการบัญชี", 
-      "ยอดเงินธนาคาร"
-    ];
+    const headers = ["Matching_ID", "วันที่(บัญชี)", "เลขที่เอกสาร", "ยอดเงินบัญชี", "วันที่(ธนาคาร)", "รายการธนาคาร", "ยอดเงินธนาคาร"];
     const headerRow = worksheet.addRow(headers);
     headerRow.font = { bold: true };
     headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -160,87 +150,54 @@ const BankReconcileApp = () => {
     const dateStr = now.getFullYear().toString() + (now.getMonth() + 1).toString().padStart(2, '0') + now.getDate().toString().padStart(2, '0');
     const numFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
 
-    let currentRow = 2; // เริ่มแถวที่ 2
+    let currentRow = 2;
 
     confirmedMatches.forEach((match, matchIdx) => {
       const numRows = Math.max(match.internals.length, match.banks.length);
       const stmId = `STM-${dateStr}${String(matchIdx + 1).padStart(3, '0')}`;
 
       for (let i = 0; i < numRows; i++) {
-        // เตรียมข้อมูลแต่ละคอลัมน์
         const rowData = [
-          i === 0 ? stmId : "", // A: Matching_ID
-          // B: วันที่บัญชี
+          i === 0 ? stmId : "", 
           match.internals.length === 1 ? (i === 0 ? match.internals[0].date : "") : (match.internals[i]?.date || ""),
-          // C: เลขที่เอกสาร
           match.internals.length === 1 ? (i === 0 ? match.internals[0].docNo : "") : (match.internals[i]?.docNo || ""),
-          // D: ยอดเงินบัญชี
           match.internals.length === 1 ? (i === 0 ? match.internals[0].amount : null) : (match.internals[i]?.amount || null),
-          // E: วันที่ธนาคาร
           match.banks.length === 1 ? (i === 0 ? match.banks[0].date : "") : (match.banks[i]?.date || ""),
-          // F: รายละเอียดธนาคาร (เดิมคือรายการธนาคาร)
           match.banks.length === 1 ? (i === 0 ? match.banks[0].docNo : "") : (match.banks[i]?.docNo || ""),
-          // G: รายละเอียดรายการบัญชี (เพิ่มใหม่ ดึงจาก description)
-          match.internals.length === 1 ? (i === 0 ? match.internals[0].description : "") : (match.internals[i]?.description || ""),
-          // H: ยอดเงินธนาคาร
           match.banks.length === 1 ? (i === 0 ? match.banks[0].amount : null) : (match.banks[i]?.amount || null)
         ];
         
         const newRow = worksheet.addRow(rowData);
-
-        // ตั้งค่าชิดซ้ายบนทุกเซลล์
         newRow.eachCell((cell) => {
           cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
         });
-
-        // ใส่ฟอร์แมตตัวเลขบัญชี (คอลัมน์ D Index 4 และ H Index 8)
         newRow.getCell(4).numFmt = numFormat;
-        newRow.getCell(8).numFmt = numFormat;
+        newRow.getCell(7).numFmt = numFormat;
       }
 
-      // --- ส่วนการ Merge เซลล์ ---
       const endRow = currentRow + numRows - 1;
-      
-      // Merge A: Matching_ID
       worksheet.mergeCells(`A${currentRow}:A${endRow}`);
-
-      // Merge ฝั่งบัญชี (B, C, D, G)
       if (match.internals.length === 1 && numRows > 1) {
-        worksheet.mergeCells(`B${currentRow}:B${endRow}`); // วันที่
-        worksheet.mergeCells(`C${currentRow}:C${endRow}`); // เลขที่เอกสาร
-        worksheet.mergeCells(`D${currentRow}:D${endRow}`); // ยอดเงิน
-        worksheet.mergeCells(`G${currentRow}:G${endRow}`); // รายละเอียดบัญชี (คอลัมน์ใหม่)
+        worksheet.mergeCells(`B${currentRow}:B${endRow}`);
+        worksheet.mergeCells(`C${currentRow}:C${endRow}`);
+        worksheet.mergeCells(`D${currentRow}:D${endRow}`);
       }
-
-      // Merge ฝั่งธนาคาร (E, F, H)
       if (match.banks.length === 1 && numRows > 1) {
-        worksheet.mergeCells(`E${currentRow}:E${endRow}`); // วันที่
-        worksheet.mergeCells(`F${currentRow}:F${endRow}`); // รายละเอียดธนาคาร
-        worksheet.mergeCells(`H${currentRow}:H${endRow}`); // ยอดเงิน
+        worksheet.mergeCells(`E${currentRow}:E${endRow}`);
+        worksheet.mergeCells(`F${currentRow}:F${endRow}`);
+        worksheet.mergeCells(`G${currentRow}:G${endRow}`);
       }
-
       currentRow += numRows;
     });
 
-    // ตั้งความกว้างคอลัมน์
-    worksheet.columns = [
-      { width: 20 }, // A
-      { width: 12 }, // B
-      { width: 18 }, // C
-      { width: 15 }, // D
-      { width: 12 }, // E
-      { width: 40 }, // F (รายละเอียดธนาคาร)
-      { width: 40 }, // G (รายละเอียดบัญชี)
-      { width: 15 }  // H
-    ];
+    worksheet.columns = [{ width: 20 }, { width: 12 }, { width: 20 }, { width: 15 }, { width: 12 }, { width: 45 }, { width: 15 }];
 
-    // เขียนไฟล์และดาวน์โหลด
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `Bank_Reconcile_Report_${dateStr}.xlsx`;
+    anchor.download = `Reconcile_Export_${dateStr}.xlsx`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -249,27 +206,27 @@ const BankReconcileApp = () => {
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
         
-        {/* Header Section */}
+        {/* Header - ปุ่ม Export ย้ายมาไว้ที่นี่แล้ว */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border">
            <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
-           <div className="flex gap-2 items-center">
-              {/* ย้ายปุ่ม EXPORT EXCEL มาไว้ที่นี่ (กรอบสีแดงในรูป) */}
+           <div className="flex gap-2">
+              {/* ปุ่ม Export แสดงเฉพาะหน้า รอยืนยัน */}
               {activeTab === 'confirmed' && confirmedMatches.length > 0 && (
-                <button 
-                    onClick={exportToExcel} 
-                    className="flex items-center gap-2 bg-white text-blue-900 border-2 border-blue-900 px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-50 transition-all uppercase tracking-widest shadow-sm"
-                >
-                    <Download size={16} /> EXPORT EXCEL REPORT
+                <button onClick={exportToExcel} className="flex items-center gap-2 bg-slate-800 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-lg hover:bg-slate-900 transition-all uppercase tracking-widest">
+                  <Download size={16} /> Export Excel Report
                 </button>
               )}
+              
+              <button onClick={() => {const s=localStorage.getItem('rv1'); if(s){const d=JSON.parse(s); setInternalRecords(d.i); setBankStatement(d.b); setConfirmedMatches(d.m); alert('โหลดร่างแล้ว');}}} className="text-blue-600 font-bold text-xs px-4 py-2 hover:bg-blue-50 transition-all border border-blue-50 rounded-xl">โหลดร่าง</button>
+              <button onClick={() => {localStorage.setItem('rv1', JSON.stringify({i:internalRecords,b:bankStatement,m:confirmedMatches})); alert('บันทึกร่างแล้ว');}} className="text-emerald-600 font-bold text-xs px-4 py-2 hover:bg-emerald-50 transition-all border border-emerald-50 rounded-xl">บันทึกร่าง</button>
               <button onClick={() => window.location.reload()} className="text-slate-400 font-bold text-xs px-4 py-2 hover:text-red-500 rounded-xl transition-all">ล้างข้อมูล</button>
            </div>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-4 mb-6 ml-2">
-          <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
-          <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอยืนยัน {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
+          <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl shadow-blue-200' : 'text-slate-400 hover:bg-slate-200'}`}>รอกระทบยอด</button>
+          <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl shadow-blue-200' : 'text-slate-400 hover:bg-slate-200'}`}>รอยืนยัน {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px] leading-none">{confirmedMatches.length}</span>}</button>
         </div>
 
         <div className="flex-1">
@@ -281,7 +238,7 @@ const BankReconcileApp = () => {
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center"><span className="font-black text-[15px] uppercase tracking-widest">รายการบันทึกบัญชี ({internalRecords.length})</span><label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase"><Plus size={12} className="inline mr-1"/>นำเข้า<input type="file" onChange={(e) => handleFileUpload(e, 'internal')} className="hidden" accept=".xlsx, .xls" /></label></div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/10 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
                       <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-2 text-white/50" /><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /><span className="text-white/50">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" />{(internalStartDate || internalEndDate) && <button onClick={()=>{setInternalStartDate('');setInternalEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
                     </div>
                   </div>
@@ -302,7 +259,7 @@ const BankReconcileApp = () => {
                   <div className="p-5 bg-slate-800 text-white space-y-4">
                     <div className="flex justify-between items-center"><span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span><label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase"><Plus size={12} className="inline mr-1"/>นำเข้า<input type="file" onChange={(e) => handleFileUpload(e, 'bank')} className="hidden" accept=".xlsx, .xls" /></label></div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
                       <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10"><Calendar size={12} className="text-white/30" /><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /><span className="text-white/10">-</span><input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" />{(bankStartDate || bankEndDate) && <button onClick={()=>{setBankStartDate('');setBankEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
                     </div>
                   </div>
