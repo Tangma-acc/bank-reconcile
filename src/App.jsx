@@ -204,7 +204,7 @@ const BankReconcileApp = () => {
           if (entry.status === "ยังไม่กระทบยอด") {
             cell.font = { color: { argb: 'FFFF0000' }, bold: true };
           } else {
-            cell.font = { color: { argb: 'FF008000' } };
+            cell.font = { color: { argb: 'FF008000', bold: true } };
           }
         }
       }
