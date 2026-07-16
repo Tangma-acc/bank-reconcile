@@ -223,52 +223,16 @@ const BankReconcileApp = () => {
     a.click();
   };
 
-  const downloadTemplate = () => {
-  // 1. สร้างข้อมูลหัวตารางตามที่คุณระบุในรูปภาพ
-  const worksheetData = [
-    ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"], // หัวตาราง (Header)
-    [1, "13/07/2026", "RT-20260700010", "ตัวอย่าง: รับชำระจากลูกค้า A", 14850.00], // ข้อมูลตัวอย่างแถวที่ 1
-    [2, "13/07/2026", "RT-20260700009", "ตัวอย่าง: รับชำระจากลูกค้า B", 14850.00]  // ข้อมูลตัวอย่างแถวที่ 2
-  ];
-
-  // 2. สร้าง Workbook และ Worksheet
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-
-  // กำหนดความกว้างของคอลัมน์ให้ดูง่าย
-  ws['!cols'] = [
-    { wch: 10 }, // ลำดับที่
-    { wch: 12 }, // วันที่
-    { wch: 20 }, // เลขที่เอกสาร
-    { wch: 40 }, // คำอธิบาย
-    { wch: 15 }  // ต้องชำระ
-  ];
-
-  XLSX.utils.book_append_sheet(wb, ws, "Import_Template");
-
-  // 3. สั่ง Download ไฟล์
-  XLSX.writeFile(wb, "Template_บันทึกบัญชี.xlsx");
-};
-
+  
 return (
   <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
     <div className="max-w-[1500px] mx-auto flex flex-col h-full">
       
       {/* Header */}
       <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border">
-        <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
-        <div className="flex items-center gap-3">
-            
-            {/* ปุ่มดาวน์โหลดไฟล์ตัวอย่างที่เพิ่มใหม่ */}
-            <button 
-              onClick={downloadTemplate} 
-              className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all shadow-sm uppercase tracking-wider"
-            >
-              <FileSpreadsheet size={16} /> Download Template
-            </button>
-
-            <div className="w-px h-6 bg-slate-200 mx-1"></div>
-
+         <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
+         <div className="flex items-center gap-3">
+            {/* ย้ายปุ่มมาไว้ตรงนี้ และปรับ Style ให้กะทัดรัดเข้ากับ Header */}
             <button 
               onClick={exportToExcel} 
               className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all shadow-sm uppercase tracking-wider"
@@ -284,7 +248,7 @@ return (
             >
               ล้างข้อมูล
             </button>
-        </div>
+         </div>
       </div>
 
       {/* Tabs */}
