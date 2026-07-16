@@ -181,23 +181,26 @@ const BankReconcileApp = () => {
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     
-    // 1. Sheet: Import
+    // --- Sheet 1: Import ---
     const importSheet = workbook.addWorksheet('Import');
-    const importHeaders = ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ", ""];
-    const headerRow = importSheet.addRow(importHeaders);
+    const importHeaders = ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"];
+    const impHeaderRow = importSheet.addRow(importHeaders);
     
-    // Style หัวตาราง Import (พื้นหลังเหลือง)
-    headerRow.eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } }; // สีเทา
+    // Style หัวตาราง Import (พื้นหลังเหลืองตามรูปแรก)
+    impHeaderRow.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // สีเหลือง
       cell.font = { bold: true, name: 'Sarabun' };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-      cell.alignment = { horizontal: 'center' };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
     });
 
-    // ใส่ข้อมูลตัวอย่าง (ตามรูปที่ 1)
+    // ข้อมูลตัวอย่าง
     const samples = [
-      [1, "13/07/2026", "RT-20260700010", "ตัวอย่าง: รับชำระจากลูกค้า A", 14850.00, "ข้อมูลตัวอย่างแถวที่ 1"],
-      [2, "13/07/2026", "RT-20260700009", "ตัวอย่าง: รับชำระจากลูกค้า B", 14850.00, "ข้อมูลตัวอย่างแถวที่ 2"],
+      [1, "01/05/2026", "IV690501-001", "260430002/ข้าวตัง", 1730.00],
+      [2, "01/05/2026", "IV690501-002", "260430001/ไฮฮอป", 500.00],
+      [3, "01/05/2026", "IV690501-003", "250407003/มินิ", 4010.00],
+      [4, "01/05/2026", "IV690501-004", "231002003/บราวนี่", 360.00],
+      [5, "02/05/2026", "IV690502-001", "260502001/ลูน่า", 4795.00],
     ];
 
     samples.forEach(data => {
@@ -207,18 +210,19 @@ const BankReconcileApp = () => {
     });
     importSheet.columns = [{ width: 10 }, { width: 15 }, { width: 20 }, { width: 45 }, { width: 15 }];
 
-    // 2. Sheet: Description
+    // --- Sheet 2: Description ---
     const descSheet = workbook.addWorksheet('Description');
-    const descHeaders = ["Column ที่", "ชื่อ Column", "คำอธิบาย"];
-    const dHeaderRow = descSheet.addRow(descHeaders);
-    dHeaderRow.eachCell(c => {
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } }; // สีเทา Light Gray
-        c.font = { bold: true, name: 'Sarabun' };
-        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-        c.alignment = { horizontal: 'center' };
+    const descHeaders = ["Column ที่", "ชื่อ Column", "คำอธิบาย"]; // ตามที่คุณระบุ
+    const descHeaderRow = descSheet.addRow(descHeaders);
+
+    // Style หัวตาราง Description (พื้นหลังสีเทา)
+    descHeaderRow.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } }; // สีเทา Light Gray
+      cell.font = { bold: true, name: 'Sarabun' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
     });
 
-    // ใส่ข้อมูลคำอธิบาย (ตามรูปที่ 2)
     const descriptions = [
       ["A", "ลำดับที่*", "ใส่ลำดับที่ 1,2,3... แนะนำให้เรียงบรรทัดกัน"],
       ["B", "วันที่", "ใส่วันที่ในรูปแบบ DD/MM/YYYY โดย YYYY คือ ค.ศ. MM คือเดือน DD คือวันที่"],
@@ -233,16 +237,13 @@ const BankReconcileApp = () => {
     });
     descSheet.columns = [{ width: 12 }, { width: 18 }, { width: 75 }];
 
+    // สร้างไฟล์และดาวน์โหลด
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAsFile(buffer, "Template_Import_Records.xlsx");
-  };
-
-  const saveAsFile = (buffer, fileName) => {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileName;
+    a.download = "Template_Import_Records.xlsx";
     a.click();
     window.URL.revokeObjectURL(url);
   };
