@@ -271,7 +271,9 @@ return (
                       </label>
                   </div>
                   <div className="flex gap-2">
-                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 py-2 text-[10px] outline-none" /></div>
+                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" />
+                    {/* ปุ่มกากบาท ล้างช่องค้นหาฝั่งซ้าย */}
+                    {searchInternal && (<button onClick={() => setSearchInternal('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-all"><X size={14} /></button>)}</div>
                     <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-2 text-white/50" /><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /><span className="text-white/50">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" />{(internalStartDate || internalEndDate) && <button onClick={()=>{setInternalStartDate('');setInternalEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
                   </div>
                 </div>
