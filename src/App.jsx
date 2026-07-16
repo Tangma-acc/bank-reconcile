@@ -251,32 +251,34 @@ return (
     <div className="max-w-[1500px] mx-auto flex flex-col h-full">
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 bg-white p-4 px-6 rounded-2xl shadow-sm border border-slate-200">
-        <h1 className="text-xl font-black text-blue-900 italic tracking-tight">BANK RECONCILE</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+        <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
+        
+        {/* กลุ่มปุ่มด้านขวา */}
+        <div className="flex items-center gap-3 flex-shrink-0">
             {/* ปุ่ม Template */}
             <button 
               onClick={downloadTemplate} 
-              className="flex items-center gap-2 border border-blue-100 text-blue-600 bg-white px-4 py-2 rounded-xl font-bold text-[10px] hover:bg-blue-50 transition-all shadow-sm uppercase tracking-wider"
+              className="flex-shrink-0 flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all shadow-sm uppercase tracking-wider"
             >
-              <Save size={14} /> Template
+              <Save size={16} /> Template
             </button>
 
-            {/* ปุ่ม Export Excel */}
+            {/* ปุ่ม Export */}
             <button 
               onClick={exportToExcel} 
-              className="flex items-center gap-2 border border-emerald-100 text-emerald-600 bg-white px-4 py-2 rounded-xl font-bold text-[10px] hover:bg-emerald-50 transition-all shadow-sm uppercase tracking-wider"
+              className="flex-shrink-0 flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all shadow-sm uppercase tracking-wider"
             >
-              <Download size={14} /> Export Excel
+              <Download size={16} /> Export Excel
             </button>
             
-            {/* เส้นแบ่งแนวนอน (Divider) */}
-            <div className="w-[1px] h-5 bg-slate-200 mx-2"></div>
+            {/* เส้นแบ่ง Divider */}
+            <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0"></div>
             
-            {/* ปุ่มล้างข้อมูลที่หายไป */}
+            {/* ปุ่มล้างข้อมูล - ปรับให้เห็นชัดขึ้นและป้องกันการโดนบีบ */}
             <button 
               onClick={() => window.location.reload()} 
-              className="text-slate-400 font-bold text-[10px] px-3 py-2 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all uppercase tracking-wider"
+              className="flex-shrink-0 bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all uppercase tracking-wider"
             >
               ล้างข้อมูล
             </button>
