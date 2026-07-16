@@ -183,12 +183,12 @@ const BankReconcileApp = () => {
     
     // 1. Sheet: Import
     const importSheet = workbook.addWorksheet('Import');
-    const importHeaders = ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"];
+    const importHeaders = ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ", ""];
     const headerRow = importSheet.addRow(importHeaders);
     
     // Style หัวตาราง Import (พื้นหลังเหลือง)
     headerRow.eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // สีเหลือง
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } }; // สีเทา
       cell.font = { bold: true, name: 'Sarabun' };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       cell.alignment = { horizontal: 'center' };
@@ -196,11 +196,8 @@ const BankReconcileApp = () => {
 
     // ใส่ข้อมูลตัวอย่าง (ตามรูปที่ 1)
     const samples = [
-      [1, "01/05/2026", "IV690501-001", "260430002/ข้าวตัง", 1730.00],
-      [2, "01/05/2026", "IV690501-002", "260430001/ไฮฮอป", 500.00],
-      [3, "01/05/2026", "IV690501-003", "250407003/มินิ", 4010.00],
-      [4, "01/05/2026", "IV690501-004", "231002003/บราวนี่", 360.00],
-      [5, "02/05/2026", "IV690502-001", "260502001/ลูน่า", 4795.00],
+      [1, "13/07/2026", "RT-20260700010", "ตัวอย่าง: รับชำระจากลูกค้า A", 14850.00, "ข้อมูลตัวอย่างแถวที่ 1"],
+      [2, "13/07/2026", "RT-20260700009", "ตัวอย่าง: รับชำระจากลูกค้า B", 14850.00, "ข้อมูลตัวอย่างแถวที่ 2"],
     ];
 
     samples.forEach(data => {
@@ -215,6 +212,7 @@ const BankReconcileApp = () => {
     const descHeaders = ["Column ที่", "ชื่อ Column", "คำอธิบาย"];
     const dHeaderRow = descSheet.addRow(descHeaders);
     dHeaderRow.eachCell(c => {
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } }; // สีเทา Light Gray
         c.font = { bold: true, name: 'Sarabun' };
         c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
         c.alignment = { horizontal: 'center' };
