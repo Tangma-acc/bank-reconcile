@@ -106,7 +106,7 @@ const BankReconcileApp = () => {
           if (String(amountVal).includes('(')) amount = -Math.abs(amount);
           return { 
             id: `bank-${Date.now()}-${index}-${Math.random()}`, 
-            index: index, // เก็บตำแหน่งบรรทัดเดิม
+            index: index, 
             docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, 
             date: formatExcelDate(dateVal), 
             amount 
@@ -144,107 +144,58 @@ const BankReconcileApp = () => {
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report');
-
-    // 1. หัวตาราง
     const headers = ["#", "วันที่ออก", "กระทบยอด", "หมายเหตุ", "เงินเข้า", "เงินออก", "สถานะ"];
     const headerRow = worksheet.addRow(headers);
     
-    for (let i = 1; i <= 7; i++) {
-      const cell = headerRow.getCell(i);
+    headerRow.eachCell((cell) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
       cell.font = { bold: true, name: 'Sarabun' };
-      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
-      cell.border = {
-        top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
-      };
-    }
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
 
-    // 2. รวบรวมข้อมูลตาม Statement
     const combinedData = [];
     confirmedMatches.forEach(match => {
       const peakDocs = match.internals.map(i => i.docNo).join(', ');
-      match.banks.forEach(bankItem => {
-        combinedData.push({ ...bankItem, matchedDocNo: peakDocs, status: "กระทบยอดแล้ว" });
-      });
+      match.banks.forEach(bankItem => { combinedData.push({ ...bankItem, matchedDocNo: peakDocs, status: "กระทบยอดแล้ว" }); });
     });
-    bankStatement.forEach(bankItem => {
-      combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" });
-    });
-
-    // เรียงตาม Index จริง
+    bankStatement.forEach(bankItem => { combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" }); });
     combinedData.sort((a, b) => a.index - b.index);
 
-    // 3. เขียนข้อมูล
     const numFormat = '#,##0.00;[Red](#,##0.00)';
     combinedData.forEach((entry, idx) => {
-      const row = worksheet.addRow([
-        idx + 1,
-        entry.date,
-        entry.matchedDocNo,
-        entry.docNo,
-        entry.amount > 0 ? entry.amount : null,
-        entry.amount < 0 ? Math.abs(entry.amount) : null,
-        entry.status
-      ]);
-
-      // ใส่เส้นขอบและรูปแบบให้ครบทุกช่อง (1-7)
-      for (let i = 1; i <= 7; i++) {
-        const cell = row.getCell(i);
-        cell.border = {
-          top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
-        };
-        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: false };
-
-        if (i === 1) cell.alignment.horizontal = 'center';
-        if (i === 5 || i === 6) {
-          cell.numFmt = numFormat;
-          cell.alignment.horizontal = 'right';
-        }
-        if (i === 7) {
-          if (entry.status === "ยังไม่กระทบยอด") {
-            cell.font = { color: { argb: 'FFFF0000' }, bold: true };
-          } else {
-            cell.font = { color: { argb: 'FF008000' }, bold: true };
-          }
-        }
-      }
+      const row = worksheet.addRow([idx + 1, entry.date, entry.matchedDocNo, entry.docNo, entry.amount > 0 ? entry.amount : null, entry.amount < 0 ? Math.abs(entry.amount) : null, entry.status]);
+      row.eachCell((cell, colNum) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        if (colNum === 5 || colNum === 6) { cell.numFmt = numFormat; cell.alignment = { horizontal: 'right' }; }
+        if (colNum === 7) { cell.font = { color: { argb: entry.status === "ยังไม่กระทบยอด" ? 'FFFF0000' : 'FF008000' }, bold: true }; }
+      });
     });
 
-    worksheet.columns = [
-      { width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 15 }, { width: 15 }, { width: 18 }
-    ];
-
+    worksheet.columns = [{ width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 15 }, { width: 15 }, { width: 18 }];
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Bank_Reconcile_Report_${new Date().toISOString().split('T')[0]}.xlsx`; // = ชื่อไฟล์ Export
-    a.click();
+    saveAsFile(buffer, `Bank_Reconcile_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // --- NEW: Download Template Function ---
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     
-    // --- Sheet 1: Import ---
+    // 1. Sheet: Import
     const importSheet = workbook.addWorksheet('Import');
-    
-    // หัวตาราง
     const importHeaders = ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"];
-    const importHeaderRow = importSheet.addRow(importHeaders);
+    const headerRow = importSheet.addRow(importHeaders);
     
-    // Style หัวตาราง Import (พื้นหลังเหลือง, ขอบดำ, ตัวหนา)
-    importHeaderRow.eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    // Style หัวตาราง Import (พื้นหลังเหลือง)
+    headerRow.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // สีเหลือง
       cell.font = { bold: true, name: 'Sarabun' };
-      cell.border = {
-        top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
-      };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      cell.alignment = { horizontal: 'center' };
     });
 
-    // ข้อมูลตัวอย่าง
-    const sampleData = [
+    // ใส่ข้อมูลตัวอย่าง (ตามรูปที่ 1)
+    const samples = [
       [1, "01/05/2026", "IV690501-001", "260430002/ข้าวตัง", 1730.00],
       [2, "01/05/2026", "IV690501-002", "260430001/ไฮฮอป", 500.00],
       [3, "01/05/2026", "IV690501-003", "250407003/มินิ", 4010.00],
@@ -252,30 +203,24 @@ const BankReconcileApp = () => {
       [5, "02/05/2026", "IV690502-001", "260502001/ลูน่า", 4795.00],
     ];
 
-    sampleData.forEach(data => {
+    samples.forEach(data => {
       const row = importSheet.addRow(data);
-      row.getCell(5).numFmt = '#,##0.00'; // Format ตัวเลข
-      row.eachCell((cell) => {
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-      });
+      row.getCell(5).numFmt = '#,##0.00';
+      row.eachCell(c => c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } });
     });
+    importSheet.columns = [{ width: 10 }, { width: 15 }, { width: 20 }, { width: 45 }, { width: 15 }];
 
-    importSheet.columns = [
-      { width: 10 }, { width: 15 }, { width: 20 }, { width: 40 }, { width: 15 }
-    ];
-
-    // --- Sheet 2: Description ---
+    // 2. Sheet: Description
     const descSheet = workbook.addWorksheet('Description');
     const descHeaders = ["Column ที่", "ชื่อ Column", "คำอธิบาย"];
-    const descHeaderRow = descSheet.addRow(descHeaders);
-
-    // Style หัวตาราง Description
-    descHeaderRow.eachCell((cell) => {
-      cell.font = { bold: true, name: 'Sarabun' };
-      cell.alignment = { horizontal: 'center' };
-      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    const dHeaderRow = descSheet.addRow(descHeaders);
+    dHeaderRow.eachCell(c => {
+        c.font = { bold: true, name: 'Sarabun' };
+        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        c.alignment = { horizontal: 'center' };
     });
 
+    // ใส่ข้อมูลคำอธิบาย (ตามรูปที่ 2)
     const descriptions = [
       ["A", "ลำดับที่*", "ใส่ลำดับที่ 1,2,3... แนะนำให้เรียงบรรทัดกัน"],
       ["B", "วันที่", "ใส่วันที่ในรูปแบบ DD/MM/YYYY โดย YYYY คือ ค.ศ. MM คือเดือน DD คือวันที่"],
@@ -286,23 +231,22 @@ const BankReconcileApp = () => {
 
     descriptions.forEach(data => {
       const row = descSheet.addRow(data);
-      row.eachCell((cell) => {
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-      });
+      row.eachCell(c => c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } });
     });
+    descSheet.columns = [{ width: 12 }, { width: 18 }, { width: 75 }];
 
-    descSheet.columns = [
-      { width: 12 }, { width: 15 }, { width: 70 }
-    ];
-
-    // Export File
     const buffer = await workbook.xlsx.writeBuffer();
+    saveAsFile(buffer, "Template_Import_Records.xlsx");
+  };
+
+  const saveAsFile = (buffer, fileName) => {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Template_Import_Records.xlsx`;
+    a.download = fileName;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
 return (
@@ -313,10 +257,10 @@ return (
       <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border">
         <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
         <div className="flex items-center gap-3">
-            {/* เพิ่มปุ่มนี้เข้าไป */}
+            {/* New Template Button */}
             <button 
               onClick={downloadTemplate} 
-              className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all shadow-sm uppercase tracking-wider"
+              className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-indigo-100 transition-all shadow-sm uppercase tracking-wider"
             >
               <Save size={16} /> Template
             </button>
@@ -329,7 +273,7 @@ return (
             </button>
             
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
-            {/* ... ส่วนที่เหลือคงเดิม ... */}
+            <button onClick={() => window.location.reload()} className="text-slate-400 font-bold text-xs px-4 py-2 hover:text-red-500 rounded-xl transition-all">ล้างข้อมูล</button>
         </div>
       </div>
 
@@ -343,7 +287,7 @@ return (
         {activeTab === 'reconcile' ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[580px]">
-              {/* ฝั่งซ้าย: PEAK */}
+              {/* Left Side: PEAK */}
               <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
                 <div className="p-5 bg-blue-600 text-white space-y-4">
                   <div className="flex justify-between items-center">
@@ -355,7 +299,6 @@ return (
                   </div>
                   <div className="flex gap-2">
                     <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" />
-                    {/* ปุ่มกากบาท ล้างช่องค้นหาฝั่งซ้าย */}
                     {searchInternal && (<button onClick={() => setSearchInternal('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-all"><X size={14} /></button>)}</div>
                     <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-2 text-white/50" /><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /><span className="text-white/50">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" />{(internalStartDate || internalEndDate) && <button onClick={()=>{setInternalStartDate('');setInternalEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
                   </div>
@@ -372,7 +315,7 @@ return (
                 </div>
               </div>
 
-              {/* ฝั่งขวา: STM */}
+              {/* Right Side: STM */}
               <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
                 <div className="p-5 bg-slate-800 text-white space-y-4">
                   <div className="flex justify-between items-center">
@@ -384,7 +327,6 @@ return (
                   </div>
                   <div className="flex gap-2">
                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ยอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" />
-                  {/* ปุ่มกากบาท ล้างช่องค้นหาฝั่งขวา */}
                   {searchBank && (<button onClick={() => setSearchBank('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-all"><X size={14} /></button>)}</div>
                     <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10"><Calendar size={12} className="text-white/30" /><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /><span className="text-white/10">-</span><input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" />{(bankStartDate || bankEndDate) && <button onClick={()=>{setBankStartDate('');setBankEndDate('');}} className="p-1 text-white"><X size={12}/></button>}</div>
                   </div>
@@ -436,7 +378,6 @@ return (
                 )}
               </div>
             </div>
-            {/* นำส่วนปุ่ม Export เดิมออกเพื่อให้ UI ดูสะอาดขึ้น */}
             <div className="h-10"></div> 
           </div>
         )}
