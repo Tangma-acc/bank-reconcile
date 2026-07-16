@@ -188,7 +188,7 @@ const BankReconcileApp = () => {
     
     // Style หัวตาราง Import (พื้นหลังเหลืองตามรูปแรก)
     impHeaderRow.eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // สีเหลือง
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD3D3D3' } }; // สีเทา Light Gray
       cell.font = { bold: true, name: 'Sarabun' };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -196,12 +196,10 @@ const BankReconcileApp = () => {
 
     // ข้อมูลตัวอย่าง
     const samples = [
-      [1, "01/05/2026", "IV690501-001", "260430002/ข้าวตัง", 1730.00],
-      [2, "01/05/2026", "IV690501-002", "260430001/ไฮฮอป", 500.00],
-      [3, "01/05/2026", "IV690501-003", "250407003/มินิ", 4010.00],
-      [4, "01/05/2026", "IV690501-004", "231002003/บราวนี่", 360.00],
-      [5, "02/05/2026", "IV690502-001", "260502001/ลูน่า", 4795.00],
+      [1, "13/07/2026", "RT-20260700010", "ตัวอย่าง: รับชำระจากลูกค้า A", 14850.00, "ข้อมูลตัวอย่างแถวที่ 1"],
+      [2, "13/07/2026", "RT-20260700009", "ตัวอย่าง: รับชำระจากลูกค้า B", 14850.00, "ข้อมูลตัวอย่างแถวที่ 2"],
     ];
+
 
     samples.forEach(data => {
       const row = importSheet.addRow(data);
@@ -253,26 +251,35 @@ return (
     <div className="max-w-[1500px] mx-auto flex flex-col h-full">
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border">
-        <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
-        <div className="flex items-center gap-3">
-            {/* New Template Button */}
+      <div className="flex justify-between items-center mb-6 bg-white p-4 px-6 rounded-2xl shadow-sm border border-slate-200">
+        <h1 className="text-xl font-black text-blue-900 italic tracking-tight">BANK RECONCILE</h1>
+        <div className="flex items-center gap-2">
+            {/* ปุ่ม Template */}
             <button 
               onClick={downloadTemplate} 
-              className="flex items-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-indigo-100 transition-all shadow-sm uppercase tracking-wider"
+              className="flex items-center gap-2 border border-blue-100 text-blue-600 bg-white px-4 py-2 rounded-xl font-bold text-[10px] hover:bg-blue-50 transition-all shadow-sm uppercase tracking-wider"
             >
-              <Save size={16} /> Template
+              <Save size={14} /> Template
             </button>
 
+            {/* ปุ่ม Export Excel */}
             <button 
               onClick={exportToExcel} 
-              className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all shadow-sm uppercase tracking-wider"
+              className="flex items-center gap-2 border border-emerald-100 text-emerald-600 bg-white px-4 py-2 rounded-xl font-bold text-[10px] hover:bg-emerald-50 transition-all shadow-sm uppercase tracking-wider"
             >
-              <Download size={16} /> Export Excel
+              <Download size={14} /> Export Excel
             </button>
             
-            <div className="w-px h-6 bg-slate-200 mx-1"></div>
-            <button onClick={() => window.location.reload()} className="text-slate-400 font-bold text-xs px-4 py-2 hover:text-red-500 rounded-xl transition-all">ล้างข้อมูล</button>
+            {/* เส้นแบ่งแนวนอน (Divider) */}
+            <div className="w-[1px] h-5 bg-slate-200 mx-2"></div>
+            
+            {/* ปุ่มล้างข้อมูลที่หายไป */}
+            <button 
+              onClick={() => window.location.reload()} 
+              className="text-slate-400 font-bold text-[10px] px-3 py-2 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all uppercase tracking-wider"
+            >
+              ล้างข้อมูล
+            </button>
         </div>
       </div>
 
