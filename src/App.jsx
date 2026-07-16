@@ -23,17 +23,48 @@ const BankReconcileApp = () => {
   const [bankEndDate, setBankEndDate] = useState('');
 
   // --- ฟังก์ชันดาวน์โหลด Template สำหรับนำเข้า ---
-  const downloadTemplate = () => {
-    const worksheetData = [
-      ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"], // Header ตามรูปภาพ
-      [1, "13/07/2026", "RT-20260700010", "รับชำระค่าบริการ", 14850.00], // ตัวอย่างข้อมูล
+const downloadTemplate = () => {
+    // 1. ข้อมูลสำหรับ Sheet "Import" (ชีทสำหรับกรอกข้อมูล)
+    const importData = [
+      ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"], // Header
+      [1, "13/07/2026", "RT-20260700010", "รับชำระค่าบริการ", 14850.00], // ตัวอย่าง
       [2, "13/07/2026", "RT-20260700009", "รับชำระค่าสินค้า", 14850.00]
     ];
+
+    // 2. ข้อมูลสำหรับ Sheet "Description" (ชีทคำอธิบายตามรูปภาพของคุณ)
+    const descriptionData = [
+      ["Column ที่", "ชื่อ Column", "คำอธิบาย"], // Header
+      ["A", "ลำดับที่*", "ใส่ลำดับที่ 1,2,3,... แนะนำให้เรียงบรรทัดกัน"],
+      ["B", "วันที่", "ใส่วันที่ในรูปแบบ DD/MM/YYYY โดย YYYY คือปี ค.ศ. MM คือเดือน DD คือวันที่"],
+      ["C", "เลขที่เอกสาร", "ใส่ได้ไม่เกิน 32 ตัว"],
+      ["D", "คำอธิบาย", "ใส่คำอธิบายรายการนั้น ๆ ( ใส่ได้ไม่เกิน 1,000 ตัว )"],
+      ["E", "ต้องชำระ", "ยอดสุทธิตามเอกสาร"]
+    ];
+
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-    ws['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 35 }, { wch: 15 }];
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, "Template_บันทึกบัญชี.xlsx");
+
+    // สร้าง Sheet "Import"
+    const wsImport = XLSX.utils.aoa_to_sheet(importData);
+    wsImport['!cols'] = [
+      { wch: 10 }, // ลำดับที่
+      { wch: 12 }, // วันที่
+      { wch: 20 }, // เลขที่เอกสาร
+      { wch: 35 }, // คำอธิบาย
+      { wch: 15 }  // ต้องชำระ
+    ];
+    XLSX.utils.book_append_sheet(wb, wsImport, "Import");
+
+    // สร้าง Sheet "Description"
+    const wsDesc = XLSX.utils.aoa_to_sheet(descriptionData);
+    wsDesc['!cols'] = [
+      { wch: 12 }, // Column ที่
+      { wch: 15 }, // ชื่อ Column
+      { wch: 80 }  // คำอธิบาย (ขยายให้กว้างเพื่อให้คนอ่านง่าย)
+    ];
+    XLSX.utils.book_append_sheet(wb, wsDesc, "Description");
+
+    // สั่ง Download ไฟล์
+    XLSX.writeFile(wb, "Import_รายการบันทึกบัญชี.xlsx");
   };
 
   // --- ฟังก์ชันนำเข้าไฟล์ Excel ---
