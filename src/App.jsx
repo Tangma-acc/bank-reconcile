@@ -223,15 +223,104 @@ const BankReconcileApp = () => {
     a.click();
   };
 
+  const downloadTemplate = async () => {
+    const workbook = new ExcelJS.Workbook();
+    
+    // --- Sheet 1: Import ---
+    const importSheet = workbook.addWorksheet('Import');
+    
+    // หัวตาราง
+    const importHeaders = ["ลำดับที่*", "วันที่", "เลขที่เอกสาร", "คำอธิบาย", "ต้องชำระ"];
+    const importHeaderRow = importSheet.addRow(importHeaders);
+    
+    // Style หัวตาราง Import (พื้นหลังเหลือง, ขอบดำ, ตัวหนา)
+    importHeaderRow.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+      cell.font = { bold: true, name: 'Sarabun' };
+      cell.border = {
+        top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    // ข้อมูลตัวอย่าง
+    const sampleData = [
+      [1, "01/05/2026", "IV690501-001", "260430002/ข้าวตัง", 1730.00],
+      [2, "01/05/2026", "IV690501-002", "260430001/ไฮฮอป", 500.00],
+      [3, "01/05/2026", "IV690501-003", "250407003/มินิ", 4010.00],
+      [4, "01/05/2026", "IV690501-004", "231002003/บราวนี่", 360.00],
+      [5, "02/05/2026", "IV690502-001", "260502001/ลูน่า", 4795.00],
+    ];
+
+    sampleData.forEach(data => {
+      const row = importSheet.addRow(data);
+      row.getCell(5).numFmt = '#,##0.00'; // Format ตัวเลข
+      row.eachCell((cell) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      });
+    });
+
+    importSheet.columns = [
+      { width: 10 }, { width: 15 }, { width: 20 }, { width: 40 }, { width: 15 }
+    ];
+
+    // --- Sheet 2: Description ---
+    const descSheet = workbook.addWorksheet('Description');
+    const descHeaders = ["Column ที่", "ชื่อ Column", "คำอธิบาย"];
+    const descHeaderRow = descSheet.addRow(descHeaders);
+
+    // Style หัวตาราง Description
+    descHeaderRow.eachCell((cell) => {
+      cell.font = { bold: true, name: 'Sarabun' };
+      cell.alignment = { horizontal: 'center' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
+
+    const descriptions = [
+      ["A", "ลำดับที่*", "ใส่ลำดับที่ 1,2,3... แนะนำให้เรียงบรรทัดกัน"],
+      ["B", "วันที่", "ใส่วันที่ในรูปแบบ DD/MM/YYYY โดย YYYY คือ ค.ศ. MM คือเดือน DD คือวันที่"],
+      ["C", "เลขที่เอกสาร", "ใส่ได้ไม่เกิน 32 ตัว"],
+      ["D", "คำอธิบาย", "ใส่คำอธิบายรายการนั้น ๆ ( ใส่ได้ไม่เกิน 1,000 ตัว )"],
+      ["E", "ต้องชำระ", "ยอดสุทธิตามเอกสาร"],
+    ];
+
+    descriptions.forEach(data => {
+      const row = descSheet.addRow(data);
+      row.eachCell((cell) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+      });
+    });
+
+    descSheet.columns = [
+      { width: 12 }, { width: 15 }, { width: 70 }
+    ];
+
+    // Export File
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Template_Import_Records.xlsx`;
+    a.click();
+  };
+
 return (
   <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
     <div className="max-w-[1500px] mx-auto flex flex-col h-full">
       
       {/* Header */}
       <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border">
-         <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
-         <div className="flex items-center gap-3">
-            {/* ย้ายปุ่มมาไว้ตรงนี้ และปรับ Style ให้กะทัดรัดเข้ากับ Header */}
+        <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
+        <div className="flex items-center gap-3">
+            {/* เพิ่มปุ่มนี้เข้าไป */}
+            <button 
+              onClick={downloadTemplate} 
+              className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all shadow-sm uppercase tracking-wider"
+            >
+              <Save size={16} /> Template
+            </button>
+
             <button 
               onClick={exportToExcel} 
               className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all shadow-sm uppercase tracking-wider"
@@ -240,14 +329,8 @@ return (
             </button>
             
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
-
-            <button 
-              onClick={() => window.location.reload()} 
-              className="text-slate-400 font-bold text-xs px-4 py-2 hover:text-red-500 rounded-xl transition-all"
-            >
-              ล้างข้อมูล
-            </button>
-         </div>
+            {/* ... ส่วนที่เหลือคงเดิม ... */}
+        </div>
       </div>
 
       {/* Tabs */}
