@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, CheckCircle2, RefreshCw, Plus, ArrowRightLeft, Trash2, Save, Download, Search, Calendar, X } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Save, Download, Search, Calendar, X } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
 const BankReconcileApp = () => {
@@ -23,9 +23,8 @@ const BankReconcileApp = () => {
   const formatExcelDate = (val) => {
     if (!val) return '-';
     let date;
-    if (typeof val === 'number') {
-      date = new Date(Math.round((val - 25569) * 86400 * 1000));
-    } else {
+    if (typeof val === 'number') date = new Date(Math.round((val - 25569) * 86400 * 1000));
+    else {
       date = new Date(val);
       if (isNaN(date.getTime())) return val;
     }
@@ -36,17 +35,24 @@ const BankReconcileApp = () => {
     if (!dateStr || dateStr === '-') return null;
     const parts = dateStr.split('/');
     if (parts.length !== 3) return null;
-    // parts[2] = year, parts[1]-1 = month index, parts[0] = day
     return new Date(parts[2], parts[1] - 1, parts[0]);
   };
 
-  // ฟังก์ชันสำหรับ Sorting วันที่
   const sortByDate = (a, b) => {
     const dateA = parseDisplayDate(a.date);
     const dateB = parseDisplayDate(b.date);
     if (!dateA) return 1;
     if (!dateB) return -1;
     return dateA.getTime() - dateB.getTime();
+  };
+
+  const formatAccounting = (num) => {
+    if (num === 0 || num === null || num === undefined) return "-";
+    const formatted = Math.abs(num).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return num < 0 ? `(${formatted})` : formatted;
   };
 
   // --- Filtering Logic ---
@@ -108,14 +114,7 @@ const BankReconcileApp = () => {
           if (!docNo || docNo === 'รวม') return null;
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
           if (isExpense && amount > 0) amount = -amount;
-          return { 
-            id: `peak-${Date.now()}-${index}-${Math.random()}`, 
-            docNo, 
-            date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), 
-            description: item['คำอธิบาย'] || '', 
-            status: item['สถานะ'] || '', 
-            amount 
-          };
+          return { id: `peak-${Date.now()}-${index}`, docNo, date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), description: item['คำอธิบาย'] || '', status: item['สถานะ'] || '', amount };
         } else {
           const dateVal = item['วันที่'];
           const amountVal = item['ถอนเงิน/ฝากเงิน'];
@@ -123,8 +122,7 @@ const BankReconcileApp = () => {
           let amount = parseFloat(String(amountVal).replace(/[( )]/g, '').replace(/,/g, ''));
           if (String(amountVal).includes('(')) amount = -Math.abs(amount);
           return { 
-            id: `bank-${Date.now()}-${index}-${Math.random()}`, 
-            index: index, 
+            id: `bank-${Date.now()}-${index}`, 
             docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, 
             date: formatExcelDate(dateVal), 
             amount 
@@ -132,12 +130,8 @@ const BankReconcileApp = () => {
         }
       }).filter(i => i !== null && !isNaN(i.amount) && i.amount !== 0);
 
-      // เรียงลำดับข้อมูลใหม่ทันทีหลังรวมไฟล์
-      if (isInternal) {
-        setInternalRecords(prev => [...prev, ...formattedData].sort(sortByDate));
-      } else {
-        setBankStatement(prev => [...prev, ...formattedData].sort(sortByDate));
-      }
+      if (isInternal) setInternalRecords(prev => [...prev, ...formattedData].sort(sortByDate));
+      else setBankStatement(prev => [...prev, ...formattedData].sort(sortByDate));
     };
     reader.readAsArrayBuffer(file);
     e.target.value = null;
@@ -162,26 +156,14 @@ const BankReconcileApp = () => {
     }
   };
 
-  // --- Download Template Function ---
-  const downloadTemplate = () => {
-    const workbook = XLSX.utils.book_new();
-    const internalData = [['เลขที่เอกสาร', 'วันที่ออก', 'ต้องชำระ', 'คำอธิบาย'], ['INV001', '01/07/2024', 1500.00, 'ค่าบริการ']];
-    const bankData = [['วันที่', 'ถอนเงิน/ฝากเงิน', 'รายละเอียด'], ['01/07/2024', 1500.00, 'Transfer IN']];
-    
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(internalData), 'Internal_Template');
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(bankData), 'Bank_Template');
-    XLSX.writeFile(workbook, 'Reconcile_Template.xlsx');
-  };
-
-  // --- Export Logic ---
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report');
+    const accountingFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
 
-    const headers = ["#", "วันที่ออก", "กระทบยอด", "หมายเหตุ", "เงินเข้า", "เงินออก", "สถานะ"];
+    const headers = ["#", "วันที่ออก", "กระทบยอด", "หมายเหตุ", "ยอดเงิน", "สถานะ"];
     const headerRow = worksheet.addRow(headers);
-    
-    headerRow.eachCell((cell) => {
+    headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
       cell.font = { bold: true };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -190,76 +172,45 @@ const BankReconcileApp = () => {
 
     const combinedData = [];
     confirmedMatches.forEach(match => {
-      const peakDocs = match.internals.map(i => i.docNo).join(', ');
-      match.banks.forEach(bankItem => {
-        combinedData.push({ ...bankItem, matchedDocNo: peakDocs, status: "กระทบยอดแล้ว" });
-      });
+      match.banks.forEach(bankItem => combinedData.push({ ...bankItem, matchedDocNo: match.internals.map(i => i.docNo).join(', '), status: "กระทบยอดแล้ว" }));
     });
-    bankStatement.forEach(bankItem => {
-      combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" });
-    });
-
-    // เรียงวันที่ในการ Export ด้วย
+    bankStatement.forEach(bankItem => combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" }));
     combinedData.sort(sortByDate);
 
-    const numFormat = '#,##0.00;[Red](#,##0.00)';
     combinedData.forEach((entry, idx) => {
-      const row = worksheet.addRow([
-        idx + 1,
-        entry.date,
-        entry.matchedDocNo,
-        entry.docNo,
-        entry.amount > 0 ? entry.amount : null,
-        entry.amount < 0 ? Math.abs(entry.amount) : null,
-        entry.status
-      ]);
-
-      row.eachCell((cell, colNum) => {
+      const row = worksheet.addRow([idx + 1, entry.date, entry.matchedDocNo, entry.docNo, entry.amount, entry.status]);
+      row.eachCell((cell, col) => {
         cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-        if (colNum === 5 || colNum === 6) {
-          cell.numFmt = numFormat;
-          cell.alignment = { horizontal: 'right' };
-        }
-        if (colNum === 7) {
-          cell.font = { color: { argb: entry.status === "ยังไม่กระทบยอด" ? 'FFFF0000' : 'FF008000' }, bold: true };
-        }
+        if (col === 5) { cell.numFmt = accountingFormat; cell.alignment = { horizontal: 'right' }; }
+        if (col === 6) { cell.font = { color: { argb: entry.status === "ยังไม่กระทบยอด" ? 'FFFF0000' : 'FF008000' }, bold: true }; }
       });
     });
 
-    worksheet.columns = [{ width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 15 }, { width: 15 }, { width: 18 }];
-
+    worksheet.columns = [{ width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 20 }, { width: 18 }];
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Bank_Reconcile_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    a.click();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Bank_Reconcile_${new Date().toISOString().split('T')[0]}.xlsx`; a.click();
   };
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
-        
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
-          
           <div className="flex items-center gap-3">
-              <button onClick={downloadTemplate} className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all uppercase">
-                <Save size={16} /> Template
-              </button>
-              <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all uppercase">
-                <Download size={16} /> Export Excel
-              </button>
-              <div className="w-px h-6 bg-slate-200 mx-1"></div>
-              <button onClick={() => window.location.reload()} className="bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:bg-red-50 transition-all">
-                ล้างข้อมูล
-              </button>
+            <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all uppercase tracking-wider">
+              <Download size={16} /> Export Excel
+            </button>
+            <div className="w-px h-6 bg-slate-200 mx-1"></div>
+            <button onClick={() => window.location.reload()} className="bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:bg-red-50 transition-all uppercase">
+              ล้างข้อมูล
+            </button>
           </div>
         </div>
 
-        {/* Tab Buttons */}
+        {/* Tabs */}
         <div className="flex gap-4 mb-6 ml-2">
           <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
           <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอยืนยัน {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
@@ -269,16 +220,15 @@ const BankReconcileApp = () => {
           {activeTab === 'reconcile' ? (
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[580px]">
-                
-                {/* Left Side: PEAK/Internal */}
+                {/* Internal Card */}
                 <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center">
-                        <span className="font-black text-[15px] uppercase tracking-widest">รายการบันทึกบัญชี ({internalRecords.length})</span>
-                        <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all">
-                            <Plus size={12} className="inline mr-1"/>นำเข้า
-                            <input type="file" onChange={(e) => handleFileUpload(e, 'internal')} className="hidden" accept=".xlsx, .xls" />
-                        </label>
+                      <span className="font-black text-[15px] uppercase tracking-widest">รายการบันทึกบัญชี ({internalRecords.length})</span>
+                      <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
+                        <Plus size={12} className="inline mr-1"/>นำเข้า
+                        <input type="file" onChange={(e) => handleFileUpload(e, 'internal')} className="hidden" accept=".xlsx, .xls" />
+                      </label>
                     </div>
                     <div className="flex gap-2">
                       <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหายอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" /></div>
@@ -286,35 +236,30 @@ const BankReconcileApp = () => {
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/30">
-                    {filteredInternal.map((item) => (
+                    {filteredInternal.map(item => (
                       <div key={item.id} onClick={() => toggleSelection(item, 'internal')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer min-h-[85px] flex items-center ${selectedInternal.some(i => i.id === item.id) ? 'border-blue-500 bg-blue-50' : 'border-white bg-white shadow-sm'}`}>
                         <div className="flex justify-between items-center w-full">
                           <div className="flex flex-col gap-1 flex-1 min-w-0 pr-4">
-                              <div className="flex items-center gap-2">
-                                  <span className="font-bold text-slate-800 text-xs truncate">{item.docNo}</span>
-                                  {item.status && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-black">{item.status}</span>}
-                              </div>
-                              <span className="text-[10px] text-slate-400 italic truncate">{item.description || '-'}</span>
-                              <span className="text-[9px] text-slate-400 font-bold uppercase">{item.date}</span>
+                            <div className="flex items-center gap-2"><span className="font-bold text-slate-800 text-xs truncate">{item.docNo}</span>{item.status && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-black">{item.status}</span>}</div>
+                            <span className="text-[10px] text-slate-400 italic truncate">{item.description || '-'}</span>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase">{item.date}</span>
                           </div>
-                          <span className={`text-xl font-black tabular-nums ${item.amount < 0 ? 'text-red-500' : 'text-blue-600'}`}>
-                              {item.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                          </span>
+                          <span className={`text-xl font-black tabular-nums ${item.amount < 0 ? 'text-red-500' : 'text-blue-600'}`}>{formatAccounting(item.amount)}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Right Side: Bank Statement */}
+                {/* Bank Card */}
                 <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
                   <div className="p-5 bg-slate-800 text-white space-y-4">
                     <div className="flex justify-between items-center">
-                        <span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span>
-                        <label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all">
-                            <Plus size={12} className="inline mr-1"/>นำเข้า
-                            <input type="file" onChange={(e) => handleFileUpload(e, 'bank')} className="hidden" accept=".xlsx, .xls" />
-                        </label>
+                      <span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span>
+                      <label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
+                        <Plus size={12} className="inline mr-1"/>นำเข้า
+                        <input type="file" onChange={(e) => handleFileUpload(e, 'bank')} className="hidden" accept=".xlsx, .xls" />
+                      </label>
                     </div>
                     <div className="flex gap-2">
                       <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหายอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" /></div>
@@ -322,17 +267,15 @@ const BankReconcileApp = () => {
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/30">
-                    {filteredBank.map((item) => (
-                      <div key={item.id} onClick={() => toggleSelection(item, 'bank')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer min-h-[85px] flex items-center ${selectedBank.some(i => i.id === item.id) ? 'border-slate-800 bg-slate-100' : 'border-white bg-white shadow-sm'}`}>
+                    {filteredBank.map(item => (
+                      <div key={item.id} onClick={() => toggleSelection(item, 'bank')} className={`p-4 rounded-2xl border-2 transition-all cursor-pointer min-h-[85px] flex items-center ${selectedBank.some(i => i.id === item.id) ? 'border-slate-800 bg-slate-100 shadow-md' : 'border-white bg-white shadow-sm'}`}>
                         <div className="flex justify-between items-center w-full">
                           <div className="flex flex-col gap-1 flex-1 min-w-0 pr-4">
-                              <span className="font-bold text-slate-700 text-xs line-clamp-1">{item.docNo}</span>
-                              <span className="text-[10px] opacity-0">-</span> {/* Space filler */}
-                              <span className="text-[9px] text-slate-400 font-bold uppercase">{item.date}</span>
+                            <span className="font-bold text-slate-700 text-xs line-clamp-1">{item.docNo}</span>
+                            <span className="text-[10px] opacity-0">-</span>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase">{item.date}</span>
                           </div>
-                          <span className={`text-xl font-black tabular-nums ${item.amount < 0 ? 'text-red-500' : 'text-slate-900'}`}>
-                              {item.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                          </span>
+                          <span className={`text-xl font-black tabular-nums ${item.amount < 0 ? 'text-red-500' : 'text-slate-900'}`}>{formatAccounting(item.amount)}</span>
                         </div>
                       </div>
                     ))}
@@ -340,78 +283,31 @@ const BankReconcileApp = () => {
                 </div>
               </div>
 
-              {/* Match Summary Section */}
+              {/* Bottom Bar */}
               <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
-                <div className="text-center">
-                  <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมบัญชี</div>
-                  <div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{internalSum.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                </div>
-                
+                <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมบัญชี</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{formatAccounting(internalSum)}</div></div>
                 <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border shadow-inner min-w-[380px]">
                   <div className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">ผลต่างรวม</div>
-                  <div className={`text-6xl font-black tabular-nums tracking-tighter ${diff < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {diff.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                  </div>
-                  {diff < 0.01 && internalSum !== 0 && (
-                    <button onClick={confirmMatch} className="mt-5 bg-blue-600 text-white px-12 py-3.5 rounded-full font-black text-xs hover:bg-blue-700 transition-all flex items-center gap-2 shadow-2xl animate-bounce tracking-widest uppercase">
-                      ยืนยันจับคู่ <ArrowRightLeft size={16}/>
-                    </button>
-                  )}
+                  <div className={`text-6xl font-black tabular-nums tracking-tighter ${diff < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>{formatAccounting(diff)}</div>
+                  {diff < 0.01 && internalSum !== 0 && <button onClick={confirmMatch} className="mt-5 bg-blue-600 text-white px-12 py-3.5 rounded-full font-black text-xs hover:bg-blue-700 transition-all flex items-center gap-2 shadow-2xl animate-bounce tracking-widest uppercase">ยืนยันจับคู่ <ArrowRightLeft size={16}/></button>}
                 </div>
-
-                <div className="text-center">
-                  <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมธนาคาร</div>
-                  <div className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{bankSum.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                </div>
+                <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมธนาคาร</div><div className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{formatAccounting(bankSum)}</div></div>
               </div>
             </div>
           ) : (
-            /* Confirmed Tab Content */
             <div className="flex flex-col h-full gap-6">
               <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-[550px]">
-                <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase tracking-widest">
-                  <span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span>
-                </div>
+                <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase tracking-widest"><span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span></div>
                 <div className="p-8 space-y-6 overflow-y-auto flex-1 bg-slate-50/20">
-                  {confirmedMatches.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-4">
-                      <div className="bg-slate-100 p-8 rounded-full"><Download size={48} /></div>
-                      <p className="font-bold">ยังไม่มีข้อมูลที่จับคู่สำเร็จ</p>
+                  {confirmedMatches.map(m => (
+                    <div key={m.id} className="group bg-white border border-slate-100 rounded-[2rem] p-8 grid grid-cols-4 items-center shadow-sm relative hover:border-blue-300 transition-all">
+                      <div className="space-y-3">{m.internals.map(i => <div key={i.id} className="flex flex-col"><span className="text-[10px] text-slate-400 font-black">{i.date}</span><span className="text-sm font-bold text-blue-700">{i.docNo}</span></div>)}</div>
+                      <div className={`text-center font-black text-2xl border-r border-slate-50 ${m.totalAmount < 0 ? 'text-red-500' : 'text-slate-800'}`}>{formatAccounting(m.totalAmount)}</div>
+                      <div className="pl-8 space-y-3">{m.banks.map(b => <div key={b.id} className="flex flex-col"><span className="text-[10px] text-slate-400 font-black">{b.date}</span><span className="text-sm font-bold text-slate-800 line-clamp-1">{b.docNo}</span></div>)}</div>
+                      <div className={`text-right font-black text-2xl ${m.totalAmount < 0 ? 'text-red-500' : 'text-slate-800'}`}>{formatAccounting(m.totalAmount)}</div>
+                      <button onClick={() => { setConfirmedMatches(prev => prev.filter(x => x.id !== m.id)); setInternalRecords(p => [...p, ...m.internals].sort(sortByDate)); setBankStatement(p => [...p, ...m.banks].sort(sortByDate)); }} className="absolute -right-3 -top-3 bg-white text-rose-500 border-2 border-rose-50 rounded-full p-2.5 opacity-0 group-hover:opacity-100 transition-all shadow-xl hover:bg-rose-500 hover:text-white"><Trash2 size={18}/></button>
                     </div>
-                  ) : (
-                    confirmedMatches.map((m) => (
-                      <div key={m.id} className="group bg-white border border-slate-100 rounded-[2rem] p-8 grid grid-cols-4 items-center shadow-sm relative hover:border-blue-300 transition-all">
-                        <div className="space-y-3">
-                          {m.internals.map(i => (
-                            <div key={i.id} className="flex flex-col">
-                              <span className="text-[10px] text-slate-400 font-black">{i.date}</span>
-                              <span className="text-sm font-bold text-blue-700">{i.docNo}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="text-center font-black text-slate-800 text-2xl border-r border-slate-50">{m.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                        <div className="pl-8 space-y-3">
-                          {m.banks.map(b => (
-                            <div key={b.id} className="flex flex-col">
-                              <span className="text-[10px] text-slate-400 font-black">{b.date}</span>
-                              <span className="text-sm font-bold text-slate-800 line-clamp-1">{b.docNo}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="text-right font-black text-slate-800 text-2xl">{m.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                        <button 
-                          onClick={() => { 
-                            setConfirmedMatches(prev => prev.filter(x => x.id !== m.id)); 
-                            setInternalRecords(prev => [...prev, ...m.internals].sort(sortByDate)); 
-                            setBankStatement(prev => [...prev, ...m.banks].sort(sortByDate)); 
-                          }} 
-                          className="absolute -right-3 -top-3 bg-white text-rose-500 border-2 border-rose-50 rounded-full p-2.5 opacity-0 group-hover:opacity-100 transition-all shadow-xl hover:bg-rose-500 hover:text-white"
-                        >
-                          <Trash2 size={18}/>
-                        </button>
-                      </div>
-                    ))
-                  )}
+                  ))}
                 </div>
               </div>
             </div>
