@@ -294,7 +294,7 @@ return (
                 <div className="p-5 bg-slate-800 text-white space-y-4">
                   <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span>
-                      <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
+                      <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
                           <Plus size={12} className="inline mr-1"/>นำเข้า
                           <input type="file" onChange={(e) => handleFileUpload(e, 'bank')} className="hidden" accept=".xlsx, .xls" />
                       </label>
