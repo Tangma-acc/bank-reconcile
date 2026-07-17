@@ -198,7 +198,7 @@ const BankReconcileApp = () => {
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
         {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
-          <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILE</h1>
+          <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILATION</h1>
           <div className="flex items-center gap-3">
             <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all uppercase tracking-wider">
               <Download size={16} /> Export Excel
@@ -213,7 +213,7 @@ const BankReconcileApp = () => {
         {/* Tabs */}
         <div className="flex gap-4 mb-6 ml-2">
           <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
-          <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอยืนยัน {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
+          <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>กระทบยอดแล้ว {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
         </div>
 
         <div className="flex-1">
@@ -318,4 +318,4 @@ const BankReconcileApp = () => {
   );
 };
 
-export default BankReconcileApp;
+export default BankReconcileApp; 
