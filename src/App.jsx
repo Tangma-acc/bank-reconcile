@@ -20,22 +20,46 @@ const BankReconcileApp = () => {
   const [bankEndDate, setBankEndDate] = useState('');
 
   // --- Helpers ---
+  
+  // ปรับปรุงฟังก์ชันแปลงวันที่จาก Excel ให้รองรับ dd/mm/yyyy
   const formatExcelDate = (val) => {
     if (!val) return '-';
     let date;
-    if (typeof val === 'number') date = new Date(Math.round((val - 25569) * 86400 * 1000));
-    else {
+
+    // กรณีเป็นตัวเลข (Excel Date Serial)
+    if (typeof val === 'number') {
+      date = new Date(Math.round((val - 25569) * 86400 * 1000));
+    } 
+    // กรณีเป็น String
+    else if (typeof val === 'string') {
+      // ตรวจสอบว่ามาในรูปแบบ dd/mm/yyyy หรือไม่
+      const parts = val.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // JS month is 0-indexed
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+      } else {
+        date = new Date(val);
+      }
+    } else {
       date = new Date(val);
-      if (isNaN(date.getTime())) return val;
     }
+
+    // ถ้าแปลงไม่สำเร็จ ให้คืนค่าเดิม
+    if (isNaN(date.getTime())) return String(val);
+
+    // ส่งคืนในรูปแบบ dd/mm/yyyy เสมอ
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
+  // ปรับปรุงการ Parse วันที่จากหน้าจอ (dd/mm/yyyy) เพื่อใช้ในการคำนวณ/ฟิลเตอร์
   const parseDisplayDate = (dateStr) => {
     if (!dateStr || dateStr === '-') return null;
     const parts = dateStr.split('/');
     if (parts.length !== 3) return null;
-    return new Date(parts[2], parts[1] - 1, parts[0]);
+    // สร้าง Date object โดยให้เวลาเป็น 00:00:00 ป้องกันเรื่อง Timezone
+    return new Date(parts[2], parts[1] - 1, parts[0], 0, 0, 0);
   };
 
   const sortByDate = (a, b) => {
@@ -62,8 +86,17 @@ const BankReconcileApp = () => {
       const itemDate = parseDisplayDate(item.date);
       let matchesDate = true;
       if (itemDate) {
-        if (internalStartDate && itemDate < new Date(internalStartDate)) matchesDate = false;
-        if (internalEndDate && itemDate > new Date(internalEndDate)) matchesDate = false;
+        // เทียบวันที่จาก input (yyyy-mm-dd) กับ itemDate (Local Time)
+        if (internalStartDate) {
+          const start = new Date(internalStartDate);
+          start.setHours(0,0,0,0);
+          if (itemDate < start) matchesDate = false;
+        }
+        if (internalEndDate) {
+          const end = new Date(internalEndDate);
+          end.setHours(0,0,0,0);
+          if (itemDate > end) matchesDate = false;
+        }
       }
       return matchesSearch && matchesDate;
     });
@@ -75,8 +108,16 @@ const BankReconcileApp = () => {
       const itemDate = parseDisplayDate(item.date);
       let matchesDate = true;
       if (itemDate) {
-        if (bankStartDate && itemDate < new Date(bankStartDate)) matchesDate = false;
-        if (bankEndDate && itemDate > new Date(bankEndDate)) matchesDate = false;
+        if (bankStartDate) {
+          const start = new Date(bankStartDate);
+          start.setHours(0,0,0,0);
+          if (itemDate < start) matchesDate = false;
+        }
+        if (bankEndDate) {
+          const end = new Date(bankEndDate);
+          end.setHours(0,0,0,0);
+          if (itemDate > end) matchesDate = false;
+        }
       }
       return matchesSearch && matchesDate;
     });
@@ -92,7 +133,7 @@ const BankReconcileApp = () => {
     
     reader.onload = (event) => {
       const data = new Uint8Array(event.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
+      const workbook = XLSX.read(data, { type: 'array', cellDates: false }); // ใช้ cellDates: false เพื่อรับค่า string หรือตัวเลขดิบ
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
@@ -114,7 +155,14 @@ const BankReconcileApp = () => {
           if (!docNo || docNo === 'รวม') return null;
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
           if (isExpense && amount > 0) amount = -amount;
-          return { id: `peak-${Date.now()}-${index}`, docNo, date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), description: item['คำอธิบาย'] || '', status: item['สถานะ'] || '', amount };
+          return { 
+            id: `peak-${Date.now()}-${index}`, 
+            docNo, 
+            date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), 
+            description: item['คำอธิบาย'] || '', 
+            status: item['สถานะ'] || '', 
+            amount 
+          };
         } else {
           const dateVal = item['วันที่'];
           const amountVal = item['ถอนเงิน/ฝากเงิน'];
@@ -137,6 +185,7 @@ const BankReconcileApp = () => {
     e.target.value = null;
   };
 
+  // ... (ส่วนที่เหลือคงเดิม: toggleSelection, confirmMatch, exportToExcel, และ JSX) ...
   const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
   const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
   const diff = Math.abs(internalSum - bankSum);
@@ -194,9 +243,9 @@ const BankReconcileApp = () => {
   };
 
   return (
+    // ... ส่วน JSX เหมือนเดิมทุกประการ ...
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
-        {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILATION</h1>
           <div className="flex items-center gap-3">
@@ -210,7 +259,6 @@ const BankReconcileApp = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-6 ml-2">
           <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
           <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>กระทบยอดแล้ว {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
@@ -283,7 +331,6 @@ const BankReconcileApp = () => {
                 </div>
               </div>
 
-              {/* Bottom Bar */}
               <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
                 <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมบัญชี</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{formatAccounting(internalSum)}</div></div>
                 <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border shadow-inner min-w-[380px]">
@@ -318,4 +365,4 @@ const BankReconcileApp = () => {
   );
 };
 
-export default BankReconcileApp; 
+export default BankReconcileApp;
