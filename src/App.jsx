@@ -100,7 +100,6 @@ const BankReconcileApp = () => {
           if (!docNo || docNo === 'รวม' || docNo.trim() === '') return null;
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
           
-          // ตรวจคำสำคัญเพื่อกลับยอดเป็นลบ (เพิ่ม DP หรือคำอื่นใน Array นี้ได้)
           const expenseKeywords = ['exp', 'dp']; 
           const isExpense = expenseKeywords.some(k => docNo.toLowerCase().includes(k));
           if (isExpense && amount > 0) amount = -amount;
@@ -253,13 +252,13 @@ const BankReconcileApp = () => {
           <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>กระทบยอดแล้ว {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
         </div>
 
-        {/* Main Content */}
+        {/* Main Content Area */}
         <div className="flex-1">
           {activeTab === 'reconcile' ? (
-            <div className="space-y-6 h-full">
+            <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
                 
-                {/* 1. ฝั่งบันทึกบัญชี - ลากวางได้ทันที */}
+                {/* 1. ฝั่งบันทึกบัญชี */}
                 <div 
                   onDragOver={(e) => onDragOver(e, 'internal')}
                   onDragLeave={(e) => onDragLeave(e, 'internal')}
@@ -269,9 +268,9 @@ const BankReconcileApp = () => {
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest flex items-center gap-2"><Database size={18}/> รายการบันทึกบัญชี ({internalRecords.length})</span>
-                      <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
+                      <label htmlFor="internal-upload-btn" className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
                         <Plus size={12} className="inline mr-1"/> นำเข้า
-                        <input type="file" onChange={(e) => processFile(e.target.files[0], 'internal')} className="hidden" accept=".xlsx, .xls" />
+                        <input id="internal-upload-btn" type="file" onChange={(e) => processFile(e.target.files[0], 'internal')} className="hidden" accept=".xlsx, .xls" />
                       </label>
                     </div>
                     <div className="flex gap-2">
@@ -283,10 +282,10 @@ const BankReconcileApp = () => {
                   <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/30">
                     {/* UI เวลากำลังลากไฟล์ */}
                     {isDraggingInternal && (
-                      <div className="absolute inset-0 z-50 bg-blue-600/10 flex flex-col items-center justify-center pointer-events-none">
+                      <div className="absolute inset-0 z-50 bg-blue-600/10 flex flex-col items-center justify-center pointer-events-none animate-in fade-in">
                         <div className="bg-blue-600 text-white p-8 rounded-[3rem] shadow-2xl flex flex-col items-center gap-3 animate-bounce">
                            <FileUp size={48} />
-                           <span className="font-black text-lg uppercase tracking-widest">วางไฟล์บัญชีที่นี่</span>
+                           <span className="font-black text-lg uppercase tracking-widest">วางไฟล์ที่นี่</span>
                         </div>
                       </div>
                     )}
@@ -305,18 +304,22 @@ const BankReconcileApp = () => {
                       </div>
                     ))}
 
-                    {/* หน้าว่างเริ่มแรก */}
+                    {/* หน้าว่างเริ่มแรก (คลิกได้) */}
                     {internalRecords.length === 0 && !isDraggingInternal && (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
-                        <FileUp size={64} strokeWidth={1} className="opacity-40" />
-                        <h3 className="font-black text-slate-400 mt-4 uppercase tracking-widest">Import Account File</h3>
-                        <p className="text-[11px] text-slate-400 mt-1 uppercase font-bold opacity-60">ลากไฟล์ Excel มาวางในช่องนี้ได้เลย</p>
-                      </div>
+                      <label 
+                        htmlFor="internal-main-upload"
+                        className="h-full flex flex-col items-center justify-center text-slate-300 py-20 border-2 border-dashed border-slate-200 rounded-[3rem] bg-slate-50/50 cursor-pointer hover:bg-blue-50/50 hover:border-blue-300 transition-all group"
+                      >
+                        <input id="internal-main-upload" type="file" onChange={(e) => processFile(e.target.files[0], 'internal')} className="hidden" accept=".xlsx, .xls" />
+                        <FileUp size={64} strokeWidth={1} className="opacity-40 group-hover:scale-110 transition-transform" />
+                        <h3 className="font-black text-slate-400 mt-4 uppercase tracking-widest group-hover:text-blue-500">Import Account File</h3>
+                        <p className="text-[11px] text-slate-400 mt-1 uppercase font-bold opacity-60">คลิกที่นี่หรือลากไฟล์ Excel มาวางเพื่อนำเข้า</p>
+                      </label>
                     )}
                   </div>
                 </div>
 
-                {/* 2. ฝั่งธนาคาร - ลากวางได้ทันที */}
+                {/* 2. ฝั่งธนาคาร */}
                 <div 
                   onDragOver={(e) => onDragOver(e, 'bank')}
                   onDragLeave={(e) => onDragLeave(e, 'bank')}
@@ -326,9 +329,9 @@ const BankReconcileApp = () => {
                   <div className="p-5 bg-slate-800 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest text-slate-300 flex items-center gap-2"><Landmark size={18}/> รายการธนาคาร ({bankStatement.length})</span>
-                      <label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
+                      <label htmlFor="bank-upload-btn" className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
                         <Plus size={12} className="inline mr-1"/> นำเข้า
-                        <input type="file" onChange={(e) => processFile(e.target.files[0], 'bank')} className="hidden" accept=".xlsx, .xls" />
+                        <input id="bank-upload-btn" type="file" onChange={(e) => processFile(e.target.files[0], 'bank')} className="hidden" accept=".xlsx, .xls" />
                       </label>
                     </div>
                     <div className="flex gap-2">
@@ -340,10 +343,10 @@ const BankReconcileApp = () => {
                   <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/30">
                     {/* UI เวลากำลังลากไฟล์ */}
                     {isDraggingBank && (
-                      <div className="absolute inset-0 z-50 bg-slate-900/10 flex flex-col items-center justify-center pointer-events-none">
+                      <div className="absolute inset-0 z-50 bg-slate-900/10 flex flex-col items-center justify-center pointer-events-none animate-in fade-in">
                         <div className="bg-slate-800 text-white p-8 rounded-[3rem] shadow-2xl flex flex-col items-center gap-3 animate-bounce">
                            <FileUp size={48} />
-                           <span className="font-black text-lg uppercase tracking-widest">วางไฟล์ธนาคารที่นี่</span>
+                           <span className="font-black text-lg uppercase tracking-widest">วางไฟล์ที่นี่</span>
                         </div>
                       </div>
                     )}
@@ -362,19 +365,23 @@ const BankReconcileApp = () => {
                       </div>
                     ))}
 
-                    {/* หน้าว่างเริ่มแรก */}
+                    {/* หน้าว่างเริ่มแรก (คลิกได้) */}
                     {bankStatement.length === 0 && !isDraggingBank && (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
-                        <FileUp size={64} strokeWidth={1} className="opacity-40" />
-                        <h3 className="font-black text-slate-400 mt-4 uppercase tracking-widest">Import Bank File</h3>
-                        <p className="text-[11px] text-slate-400 mt-1 uppercase font-bold opacity-60">ลากไฟล์ Excel มาวางในช่องนี้ได้เลย</p>
-                      </div>
+                      <label 
+                        htmlFor="bank-main-upload"
+                        className="h-full flex flex-col items-center justify-center text-slate-300 py-20 border-2 border-dashed border-slate-200 rounded-[3rem] bg-slate-50/50 cursor-pointer hover:bg-slate-100 hover:border-slate-400 transition-all group"
+                      >
+                        <input id="bank-main-upload" type="file" onChange={(e) => processFile(e.target.files[0], 'bank')} className="hidden" accept=".xlsx, .xls" />
+                        <FileUp size={64} strokeWidth={1} className="opacity-40 group-hover:scale-110 transition-transform" />
+                        <h3 className="font-black text-slate-400 mt-4 uppercase tracking-widest group-hover:text-slate-700">Import Bank File</h3>
+                        <p className="text-[11px] text-slate-400 mt-1 uppercase font-bold opacity-60">คลิกที่นี่หรือลากไฟล์ Excel มาวางเพื่อนำเข้า</p>
+                      </label>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* สรุปยอดด้านล่าง */}
+              {/* Summary Bar */}
               <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
                 <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">บัญชีที่เลือก</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{formatAccounting(internalSum)}</div></div>
                 <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border shadow-inner min-w-[380px]">
@@ -388,7 +395,7 @@ const BankReconcileApp = () => {
               </div>
             </div>
           ) : (
-            /* ส่วนแสดงรายการที่จับคู่แล้ว */
+            /* Confirmed Tab Content (Same as before) */
             <div className="flex flex-col h-full gap-6">
               <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-[550px]">
                 <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase tracking-widest"><span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span></div>
