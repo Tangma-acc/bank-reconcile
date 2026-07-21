@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Plus, ArrowRightLeft, Trash2, Save, Download, Search, Calendar, X } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
 const BankReconcileApp = () => {
@@ -20,23 +20,16 @@ const BankReconcileApp = () => {
   const [bankEndDate, setBankEndDate] = useState('');
 
   // --- Helpers ---
-  
-  // ปรับปรุงฟังก์ชันแปลงวันที่จาก Excel ให้รองรับ dd/mm/yyyy
   const formatExcelDate = (val) => {
     if (!val) return '-';
     let date;
-
-    // กรณีเป็นตัวเลข (Excel Date Serial)
     if (typeof val === 'number') {
       date = new Date(Math.round((val - 25569) * 86400 * 1000));
-    } 
-    // กรณีเป็น String
-    else if (typeof val === 'string') {
-      // ตรวจสอบว่ามาในรูปแบบ dd/mm/yyyy หรือไม่
+    } else if (typeof val === 'string') {
       const parts = val.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // JS month is 0-indexed
+        const month = parseInt(parts[1], 10) - 1;
         const year = parseInt(parts[2], 10);
         date = new Date(year, month, day);
       } else {
@@ -45,20 +38,14 @@ const BankReconcileApp = () => {
     } else {
       date = new Date(val);
     }
-
-    // ถ้าแปลงไม่สำเร็จ ให้คืนค่าเดิม
     if (isNaN(date.getTime())) return String(val);
-
-    // ส่งคืนในรูปแบบ dd/mm/yyyy เสมอ
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
 
-  // ปรับปรุงการ Parse วันที่จากหน้าจอ (dd/mm/yyyy) เพื่อใช้ในการคำนวณ/ฟิลเตอร์
   const parseDisplayDate = (dateStr) => {
     if (!dateStr || dateStr === '-') return null;
     const parts = dateStr.split('/');
     if (parts.length !== 3) return null;
-    // สร้าง Date object โดยให้เวลาเป็น 00:00:00 ป้องกันเรื่อง Timezone
     return new Date(parts[2], parts[1] - 1, parts[0], 0, 0, 0);
   };
 
@@ -71,7 +58,7 @@ const BankReconcileApp = () => {
   };
 
   const formatAccounting = (num) => {
-    if (num === 0 || num === null || num === undefined) return "-";
+    if (num === 0 || num === null || num === undefined) return "0.00";
     const formatted = Math.abs(num).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -82,11 +69,10 @@ const BankReconcileApp = () => {
   // --- Filtering Logic ---
   const filteredInternal = useMemo(() => {
     return internalRecords.filter(item => {
-      const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal);
+      const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal) || item.docNo.toLowerCase().includes(searchInternal.toLowerCase());
       const itemDate = parseDisplayDate(item.date);
       let matchesDate = true;
       if (itemDate) {
-        // เทียบวันที่จาก input (yyyy-mm-dd) กับ itemDate (Local Time)
         if (internalStartDate) {
           const start = new Date(internalStartDate);
           start.setHours(0,0,0,0);
@@ -104,7 +90,7 @@ const BankReconcileApp = () => {
 
   const filteredBank = useMemo(() => {
     return bankStatement.filter(item => {
-      const matchesSearch = searchBank === '' || Math.abs(item.amount).toString().includes(searchBank);
+      const matchesSearch = searchBank === '' || Math.abs(item.amount).toString().includes(searchBank) || item.docNo.toLowerCase().includes(searchBank.toLowerCase());
       const itemDate = parseDisplayDate(item.date);
       let matchesDate = true;
       if (itemDate) {
@@ -128,12 +114,11 @@ const BankReconcileApp = () => {
     const file = e.target.files[0];
     if (!file) return;
     const isInternal = type === 'internal';
-    const isExpense = file.name.toLowerCase().includes('expense');
     const reader = new FileReader();
     
     reader.onload = (event) => {
       const data = new Uint8Array(event.target.result);
-      const workbook = XLSX.read(data, { type: 'array', cellDates: false }); // ใช้ cellDates: false เพื่อรับค่า string หรือตัวเลขดิบ
+      const workbook = XLSX.read(data, { type: 'array', cellDates: false });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
@@ -151,10 +136,16 @@ const BankReconcileApp = () => {
         headers.forEach((h, i) => { if (h) item[String(h).trim()] = row[i]; });
 
         if (isInternal) {
-          const docNo = item['เลขที่เอกสาร'];
-          if (!docNo || docNo === 'รวม') return null;
+          const docNo = String(item['เลขที่เอกสาร'] || '');
+          if (!docNo || docNo === 'รวม' || docNo.trim() === '') return null;
+          
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
-          if (isExpense && amount > 0) amount = -amount;
+          
+          // --- LOGIC: ตรวจเช็ค EXP จากเลขที่เอกสาร ---
+          if (docNo.toLowerCase().includes('exp') && amount > 0) {
+            amount = -amount;
+          }
+
           return { 
             id: `peak-${Date.now()}-${index}`, 
             docNo, 
@@ -185,7 +176,6 @@ const BankReconcileApp = () => {
     e.target.value = null;
   };
 
-  // ... (ส่วนที่เหลือคงเดิม: toggleSelection, confirmMatch, exportToExcel, และ JSX) ...
   const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
   const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
   const diff = Math.abs(internalSum - bankSum);
@@ -196,7 +186,7 @@ const BankReconcileApp = () => {
   };
 
   const confirmMatch = () => {
-    if (diff < 0.01 && internalSum !== 0) {
+    if (diff < 0.01 && (selectedInternal.length > 0 || selectedBank.length > 0)) {
       const newMatch = { id: Date.now(), internals: [...selectedInternal], banks: [...selectedBank], totalAmount: internalSum };
       setConfirmedMatches(prev => [newMatch, ...prev]);
       setInternalRecords(prev => prev.filter(item => !selectedInternal.some(s => s.id === item.id)));
@@ -210,7 +200,7 @@ const BankReconcileApp = () => {
     const worksheet = workbook.addWorksheet('Report');
     const accountingFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
 
-    const headers = ["#", "วันที่ออก", "กระทบยอด", "หมายเหตุ", "ยอดเงิน", "สถานะ"];
+    const headers = ["#", "วันที่", "เลขที่เอกสาร/การจับคู่", "รายละเอียด", "ยอดเงิน", "สถานะ"];
     const headerRow = worksheet.addRow(headers);
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
@@ -243,9 +233,9 @@ const BankReconcileApp = () => {
   };
 
   return (
-    // ... ส่วน JSX เหมือนเดิมทุกประการ ...
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
+        {/* Header Section */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILATION</h1>
           <div className="flex items-center gap-3">
@@ -259,11 +249,13 @@ const BankReconcileApp = () => {
           </div>
         </div>
 
+        {/* Tab Switcher */}
         <div className="flex gap-4 mb-6 ml-2">
           <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
           <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>กระทบยอดแล้ว {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
         </div>
 
+        {/* Main Content */}
         <div className="flex-1">
           {activeTab === 'reconcile' ? (
             <div className="space-y-6">
@@ -279,7 +271,7 @@ const BankReconcileApp = () => {
                       </label>
                     </div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหายอดเงิน..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none placeholder:text-white/30" /></div>
                       <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-2 text-white/50" /><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /><span className="text-white/50">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /></div>
                     </div>
                   </div>
@@ -310,7 +302,7 @@ const BankReconcileApp = () => {
                       </label>
                     </div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหายอดเงิน..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none placeholder:text-white/20" /></div>
                       <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10"><Calendar size={12} className="text-white/30" /><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /><span className="text-white/10">-</span><input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /></div>
                     </div>
                   </div>
@@ -331,17 +323,21 @@ const BankReconcileApp = () => {
                 </div>
               </div>
 
+              {/* Bottom Summary Bar */}
               <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
-                <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมบัญชี</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{formatAccounting(internalSum)}</div></div>
+                <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมบัญชีที่เลือก</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{formatAccounting(internalSum)}</div></div>
                 <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border shadow-inner min-w-[380px]">
-                  <div className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">ผลต่างรวม</div>
+                  <div className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">ผลต่าง</div>
                   <div className={`text-6xl font-black tabular-nums tracking-tighter ${diff < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>{formatAccounting(diff)}</div>
-                  {diff < 0.01 && internalSum !== 0 && <button onClick={confirmMatch} className="mt-5 bg-blue-600 text-white px-12 py-3.5 rounded-full font-black text-xs hover:bg-blue-700 transition-all flex items-center gap-2 shadow-2xl animate-bounce tracking-widest uppercase">ยืนยันจับคู่ <ArrowRightLeft size={16}/></button>}
+                  {diff < 0.01 && (selectedInternal.length > 0 || selectedBank.length > 0) && (
+                    <button onClick={confirmMatch} className="mt-5 bg-blue-600 text-white px-12 py-3.5 rounded-full font-black text-xs hover:bg-blue-700 transition-all flex items-center gap-2 shadow-2xl animate-bounce tracking-widest uppercase">ยืนยันจับคู่ <ArrowRightLeft size={16}/></button>
+                  )}
                 </div>
-                <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมธนาคาร</div><div className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{formatAccounting(bankSum)}</div></div>
+                <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมธนาคารที่เลือก</div><div className="text-5xl font-black text-slate-900 tracking-tighter tabular-nums">{formatAccounting(bankSum)}</div></div>
               </div>
             </div>
           ) : (
+            /* Confirmed List Section */
             <div className="flex flex-col h-full gap-6">
               <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-[550px]">
                 <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase tracking-widest"><span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span></div>
