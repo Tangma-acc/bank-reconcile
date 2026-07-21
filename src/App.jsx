@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar, FileUp } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
 const BankReconcileApp = () => {
@@ -10,6 +10,10 @@ const BankReconcileApp = () => {
   const [selectedInternal, setSelectedInternal] = useState([]);
   const [selectedBank, setSelectedBank] = useState([]);
   const [confirmedMatches, setConfirmedMatches] = useState([]);
+
+  // --- Drag & Drop States ---
+  const [isDraggingInternal, setIsDraggingInternal] = useState(false);
+  const [isDraggingBank, setIsDraggingBank] = useState(false);
 
   // --- Search & Filter States ---
   const [searchInternal, setSearchInternal] = useState('');
@@ -66,52 +70,8 @@ const BankReconcileApp = () => {
     return num < 0 ? `(${formatted})` : formatted;
   };
 
-  // --- Filtering Logic ---
-  const filteredInternal = useMemo(() => {
-    return internalRecords.filter(item => {
-      const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal) || item.docNo.toLowerCase().includes(searchInternal.toLowerCase());
-      const itemDate = parseDisplayDate(item.date);
-      let matchesDate = true;
-      if (itemDate) {
-        if (internalStartDate) {
-          const start = new Date(internalStartDate);
-          start.setHours(0,0,0,0);
-          if (itemDate < start) matchesDate = false;
-        }
-        if (internalEndDate) {
-          const end = new Date(internalEndDate);
-          end.setHours(0,0,0,0);
-          if (itemDate > end) matchesDate = false;
-        }
-      }
-      return matchesSearch && matchesDate;
-    });
-  }, [internalRecords, searchInternal, internalStartDate, internalEndDate]);
-
-  const filteredBank = useMemo(() => {
-    return bankStatement.filter(item => {
-      const matchesSearch = searchBank === '' || Math.abs(item.amount).toString().includes(searchBank) || item.docNo.toLowerCase().includes(searchBank.toLowerCase());
-      const itemDate = parseDisplayDate(item.date);
-      let matchesDate = true;
-      if (itemDate) {
-        if (bankStartDate) {
-          const start = new Date(bankStartDate);
-          start.setHours(0,0,0,0);
-          if (itemDate < start) matchesDate = false;
-        }
-        if (bankEndDate) {
-          const end = new Date(bankEndDate);
-          end.setHours(0,0,0,0);
-          if (itemDate > end) matchesDate = false;
-        }
-      }
-      return matchesSearch && matchesDate;
-    });
-  }, [bankStatement, searchBank, bankStartDate, bankEndDate]);
-
-  // --- File Upload Logic ---
-  const handleFileUpload = (e, type) => {
-    const file = e.target.files[0];
+  // --- Core File Processing Logic ---
+  const processFile = useCallback((file, type) => {
     if (!file) return;
     const isInternal = type === 'internal';
     const reader = new FileReader();
@@ -138,34 +98,16 @@ const BankReconcileApp = () => {
         if (isInternal) {
           const docNo = String(item['เลขที่เอกสาร'] || '');
           if (!docNo || docNo === 'รวม' || docNo.trim() === '') return null;
-          
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
-          
-          // --- LOGIC: ตรวจเช็ค EXP จากเลขที่เอกสาร ---
-          if (docNo.toLowerCase().includes('exp') && amount > 0) {
-            amount = -amount;
-          }
-
-          return { 
-            id: `peak-${Date.now()}-${index}`, 
-            docNo, 
-            date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), 
-            description: item['คำอธิบาย'] || '', 
-            status: item['สถานะ'] || '', 
-            amount 
-          };
+          if (docNo.toLowerCase().includes('exp') && amount > 0) amount = -amount;
+          return { id: `peak-${Date.now()}-${index}`, docNo, date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), description: item['คำอธิบาย'] || '', status: item['สถานะ'] || '', amount };
         } else {
           const dateVal = item['วันที่'];
           const amountVal = item['ถอนเงิน/ฝากเงิน'];
           if (!dateVal || amountVal === undefined || amountVal === null || amountVal === "") return null;
           let amount = parseFloat(String(amountVal).replace(/[( )]/g, '').replace(/,/g, ''));
           if (String(amountVal).includes('(')) amount = -Math.abs(amount);
-          return { 
-            id: `bank-${Date.now()}-${index}`, 
-            docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, 
-            date: formatExcelDate(dateVal), 
-            amount 
-          };
+          return { id: `bank-${Date.now()}-${index}`, docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, date: formatExcelDate(dateVal), amount };
         }
       }).filter(i => i !== null && !isNaN(i.amount) && i.amount !== 0);
 
@@ -173,9 +115,79 @@ const BankReconcileApp = () => {
       else setBankStatement(prev => [...prev, ...formattedData].sort(sortByDate));
     };
     reader.readAsArrayBuffer(file);
+  }, []);
+
+  // --- Handlers for Input/Drop ---
+  const handleFileUpload = (e, type) => {
+    processFile(e.target.files[0], type);
     e.target.value = null;
   };
 
+  const handleDrop = (e, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (type === 'internal') setIsDraggingInternal(false);
+    else setIsDraggingBank(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0], type);
+    }
+  };
+
+  const handleDragOver = (e, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (type === 'internal') setIsDraggingInternal(true);
+    else setIsDraggingBank(true);
+  };
+
+  const handleDragLeave = (e, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (type === 'internal') setIsDraggingInternal(false);
+    else setIsDraggingBank(false);
+  };
+
+  // --- Filtering Logic ---
+  const filteredInternal = useMemo(() => {
+    return internalRecords.filter(item => {
+      const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal) || item.docNo.toLowerCase().includes(searchInternal.toLowerCase());
+      const itemDate = parseDisplayDate(item.date);
+      let matchesDate = true;
+      if (itemDate) {
+        if (internalStartDate) {
+          const start = new Date(internalStartDate); start.setHours(0,0,0,0);
+          if (itemDate < start) matchesDate = false;
+        }
+        if (internalEndDate) {
+          const end = new Date(internalEndDate); end.setHours(0,0,0,0);
+          if (itemDate > end) matchesDate = false;
+        }
+      }
+      return matchesSearch && matchesDate;
+    });
+  }, [internalRecords, searchInternal, internalStartDate, internalEndDate]);
+
+  const filteredBank = useMemo(() => {
+    return bankStatement.filter(item => {
+      const matchesSearch = searchBank === '' || Math.abs(item.amount).toString().includes(searchBank) || item.docNo.toLowerCase().includes(searchBank.toLowerCase());
+      const itemDate = parseDisplayDate(item.date);
+      let matchesDate = true;
+      if (itemDate) {
+        if (bankStartDate) {
+          const start = new Date(bankStartDate); start.setHours(0,0,0,0);
+          if (itemDate < start) matchesDate = false;
+        }
+        if (bankEndDate) {
+          const end = new Date(bankEndDate); end.setHours(0,0,0,0);
+          if (itemDate > end) matchesDate = false;
+        }
+      }
+      return matchesSearch && matchesDate;
+    });
+  }, [bankStatement, searchBank, bankStartDate, bankEndDate]);
+
+  // --- Operations ---
   const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
   const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
   const diff = Math.abs(internalSum - bankSum);
@@ -199,7 +211,6 @@ const BankReconcileApp = () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report');
     const accountingFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
-
     const headers = ["#", "วันที่", "เลขที่เอกสาร/การจับคู่", "รายละเอียด", "ยอดเงิน", "สถานะ"];
     const headerRow = worksheet.addRow(headers);
     headerRow.eachCell(cell => {
@@ -208,14 +219,12 @@ const BankReconcileApp = () => {
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
-
     const combinedData = [];
     confirmedMatches.forEach(match => {
       match.banks.forEach(bankItem => combinedData.push({ ...bankItem, matchedDocNo: match.internals.map(i => i.docNo).join(', '), status: "กระทบยอดแล้ว" }));
     });
     bankStatement.forEach(bankItem => combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" }));
     combinedData.sort(sortByDate);
-
     combinedData.forEach((entry, idx) => {
       const row = worksheet.addRow([idx + 1, entry.date, entry.matchedDocNo, entry.docNo, entry.amount, entry.status]);
       row.eachCell((cell, col) => {
@@ -224,7 +233,6 @@ const BankReconcileApp = () => {
         if (col === 6) { cell.font = { color: { argb: entry.status === "ยังไม่กระทบยอด" ? 'FFFF0000' : 'FF008000' }, bold: true }; }
       });
     });
-
     worksheet.columns = [{ width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 20 }, { width: 18 }];
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -235,17 +243,13 @@ const BankReconcileApp = () => {
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <h1 className="text-2xl font-black text-blue-900 italic">BANK RECONCILATION</h1>
           <div className="flex items-center gap-3">
-            <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all uppercase tracking-wider">
-              <Download size={16} /> Export Excel
-            </button>
+            <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all uppercase tracking-wider"><Download size={16} /> Export Excel</button>
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
-            <button onClick={() => window.location.reload()} className="bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:bg-red-50 transition-all uppercase">
-              ล้างข้อมูล
-            </button>
+            <button onClick={() => window.location.reload()} className="bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:bg-red-50 transition-all uppercase">ล้างข้อมูล</button>
           </div>
         </div>
 
@@ -260,8 +264,22 @@ const BankReconcileApp = () => {
           {activeTab === 'reconcile' ? (
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[580px]">
-                {/* Internal Card */}
-                <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
+                
+                {/* Internal Card with Drop Zone */}
+                <div 
+                  onDragOver={(e) => handleDragOver(e, 'internal')}
+                  onDragLeave={(e) => handleDragLeave(e, 'internal')}
+                  onDrop={(e) => handleDrop(e, 'internal')}
+                  className={`bg-white rounded-[2.5rem] shadow-sm border-2 transition-all flex flex-col overflow-hidden relative ${isDraggingInternal ? 'border-blue-500 border-dashed bg-blue-50/50' : 'border-transparent'}`}
+                >
+                  {isDraggingInternal && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-blue-600/10 pointer-events-none">
+                      <div className="bg-blue-600 text-white px-8 py-4 rounded-3xl shadow-2xl flex flex-col items-center gap-2 animate-pulse">
+                        <FileUp size={48} />
+                        <span className="font-black uppercase tracking-widest text-sm">วางไฟล์ที่นี่เพื่อนำเข้า</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest">รายการบันทึกบัญชี ({internalRecords.length})</span>
@@ -288,11 +306,25 @@ const BankReconcileApp = () => {
                         </div>
                       </div>
                     ))}
+                    {filteredInternal.length === 0 && <div className="h-full flex flex-col items-center justify-center text-slate-300 py-10"><FileUp size={40} strokeWidth={1} /><p className="text-[10px] font-bold mt-2 uppercase tracking-tighter">ลากไฟล์มาวางเพื่อเริ่มงาน</p></div>}
                   </div>
                 </div>
 
-                {/* Bank Card */}
-                <div className="bg-white rounded-[2.5rem] shadow-sm border flex flex-col overflow-hidden">
+                {/* Bank Card with Drop Zone */}
+                <div 
+                  onDragOver={(e) => handleDragOver(e, 'bank')}
+                  onDragLeave={(e) => handleDragLeave(e, 'bank')}
+                  onDrop={(e) => handleDrop(e, 'bank')}
+                  className={`bg-white rounded-[2.5rem] shadow-sm border-2 transition-all flex flex-col overflow-hidden relative ${isDraggingBank ? 'border-slate-800 border-dashed bg-slate-100' : 'border-transparent'}`}
+                >
+                  {isDraggingBank && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/10 pointer-events-none">
+                      <div className="bg-slate-800 text-white px-8 py-4 rounded-3xl shadow-2xl flex flex-col items-center gap-2 animate-pulse">
+                        <FileUp size={48} />
+                        <span className="font-black uppercase tracking-widest text-sm">วางไฟล์ที่นี่เพื่อนำเข้า</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="p-5 bg-slate-800 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest text-slate-300">รายการธนาคาร ({bankStatement.length})</span>
@@ -319,11 +351,12 @@ const BankReconcileApp = () => {
                         </div>
                       </div>
                     ))}
+                    {filteredBank.length === 0 && <div className="h-full flex flex-col items-center justify-center text-slate-300 py-10"><FileUp size={40} strokeWidth={1} /><p className="text-[10px] font-bold mt-2 uppercase tracking-tighter">ลากไฟล์มาวางเพื่อเริ่มงาน</p></div>}
                   </div>
                 </div>
               </div>
 
-              {/* Bottom Summary Bar */}
+              {/* Summary Section */}
               <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
                 <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">รวมบัญชีที่เลือก</div><div className="text-5xl font-black text-blue-600 tracking-tighter tabular-nums">{formatAccounting(internalSum)}</div></div>
                 <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border shadow-inner min-w-[380px]">
