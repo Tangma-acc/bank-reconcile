@@ -94,7 +94,7 @@ const BankReconciliation = () => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      const searchKeys = isInternal ? ['เลขที่เอกสาร', 'ต้องชำระ'] : ['วันที่', 'ถอนเงิน/ฝากเงิน'];
+      const searchKeys = isInternal ? ['เลขที่เอกสาร', 'จำนวนเงิน'] : ['วันที่', 'ถอนเงิน/ฝากเงิน'];
       let headerIdx = rows.findIndex(row => 
         Array.isArray(row) && searchKeys.every(k => row.some(c => String(c).includes(k)))
       );
@@ -110,7 +110,7 @@ const BankReconciliation = () => {
         if (isInternal) {
           const docNo = String(item['เลขที่เอกสาร'] || '');
           if (!docNo || docNo === 'รวม' || docNo.trim() === '') return null;
-          let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
+          let amount = parseFloat(String(item['จำนวนเงิน'] || 0).replace(/,/g, ''));
           
           const expenseKeywords = ['exp', 'dp', 'pa',]; 
           const isExpense = expenseKeywords.some(k => docNo.toLowerCase().includes(k));
@@ -231,7 +231,7 @@ const BankReconciliation = () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report');
     const accountingFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
-    const headers = ["#", "วันที่", "เลขที่เอกสาร/การจับคู่", "รายละเอียด", "ยอดเงิน", "สถานะ"];
+    const headers = ["#", "วันที่", "เลขที่เอกสาร", "รายละเอียด", "ยอดเงิน", "สถานะ"];
     const headerRow = worksheet.addRow(headers);
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
