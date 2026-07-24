@@ -12,7 +12,7 @@ import {
   Landmark, 
   FilterX, 
   CheckCircle2,
-  History
+  History 
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
@@ -24,11 +24,9 @@ const BankReconciliationApp = () => {
   const [selectedBank, setSelectedBank] = useState([]);
   const [confirmedMatches, setConfirmedMatches] = useState([]);
 
-  // Drag & Drop States
   const [isDraggingInternal, setIsDraggingInternal] = useState(false);
   const [isDraggingBank, setIsDraggingBank] = useState(false);
 
-  // Search & Filter States
   const [searchInternal, setSearchInternal] = useState('');
   const [internalStartDate, setInternalStartDate] = useState('');
   const [internalEndDate, setInternalEndDate] = useState('');
@@ -71,7 +69,7 @@ const BankReconciliationApp = () => {
     return num < 0 ? `(${formatted})` : formatted;
   };
 
-  // --- Core Processing (Account & Bank Files) ---
+  // --- Logic: Process Normal Files ---
   const processFile = useCallback((file, type) => {
     if (!file) return;
     const isInternal = type === 'internal';
@@ -116,7 +114,7 @@ const BankReconciliationApp = () => {
     reader.readAsArrayBuffer(file);
   }, []);
 
-  // --- Import Previous Report Logic ---
+  // --- Logic: Import Partially Reconciled Report (ปุ่มที่เพิ่มใหม่) ---
   const processReportFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -150,12 +148,12 @@ const BankReconciliationApp = () => {
       });
       setBankStatement(prev => [...prev, ...newBankRecords].sort(sortByDate));
       setConfirmedMatches(prev => [...prev, ...newConfirmedMatches]);
-      alert(`นำเข้าสำเร็จ: รายการธนาคาร ${newBankRecords.length} รายการ, กระทบยอดแล้ว ${newConfirmedMatches.length} รายการ`);
+      alert(`นำเข้าสำเร็จ: รายการธนาคาร ${newBankRecords.length} รายการ และกระทบยอดแล้ว ${newConfirmedMatches.length} กลุ่ม`);
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // --- Calculations & Filters ---
+  // --- Calculations ---
   const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
   const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
   const diff = Math.abs(internalSum - bankSum);
@@ -191,51 +189,60 @@ const BankReconciliationApp = () => {
       row.getCell(6).font = { color: { argb: e.status === "ยังไม่กระทบยอด" ? 'FFFF0000' : 'FF008000' }, bold: true };
     });
     const buffer = await workbook.xlsx.writeBuffer();
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buffer])); a.download = `Reconcile_Report_${new Date().toISOString().split('T')[0]}.xlsx`; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buffer])); a.download = `Report_${new Date().toISOString().split('T')[0]}.xlsx`; a.click();
   };
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
       <div className="max-w-[1500px] mx-auto flex flex-col h-full">
+        
         {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
           <h1 className="text-2xl font-black text-blue-900 italic uppercase">Bank Reconciliation</h1>
+          
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all cursor-pointer">
+            {/* ปุ่มนำเข้าไฟล์รายงานเดิม (ที่เพิ่มใหม่) */}
+            <label className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 transition-all cursor-pointer uppercase shadow-sm">
               <History size={16} /> นำเข้ารายงานเดิม
               <input type="file" onChange={(e) => processReportFile(e.target.files[0])} className="hidden" accept=".xlsx, .xls" />
             </label>
-            <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 uppercase"><Download size={16} /> Export Excel</button>
-            <button onClick={() => window.location.reload()} className="bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:bg-red-50 uppercase">ล้างทั้งหมด</button>
+
+            <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 transition-all uppercase">
+              <Download size={16} /> Export Excel
+            </button>
+            <div className="w-px h-6 bg-slate-200 mx-1"></div>
+            <button onClick={() => window.location.reload()} className="bg-white text-slate-400 border border-slate-200 px-4 py-2 rounded-xl font-bold text-xs hover:text-red-500 hover:bg-red-50 transition-all uppercase">ล้างทั้งหมด</button>
           </div>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex gap-4 mb-6 items-center">
-          <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs ${activeTab === 'reconcile' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>รอกระทบยอด</button>
-          <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs ${activeTab === 'confirmed' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>กระทบยอดแล้ว ({confirmedMatches.length})</button>
+        <div className="flex gap-4 mb-6 ml-2 items-center">
+          <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
+          <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>
+            กระทบยอดแล้ว {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}
+          </button>
           {(selectedInternal.length > 0 || selectedBank.length > 0) && (
-            <button onClick={() => {setSelectedInternal([]); setSelectedBank([])}} className="ml-auto text-rose-500 font-black text-[10px] flex items-center gap-1 uppercase hover:bg-rose-50 px-3 py-1.5 rounded-xl"><FilterX size={14} /> ล้างการเลือก</button>
+            <button onClick={() => {setSelectedInternal([]); setSelectedBank([])}} className="ml-auto text-rose-500 font-black text-[10px] uppercase flex items-center gap-1 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition-all"><FilterX size={14} /> ล้างการเลือก</button>
           )}
         </div>
 
         {activeTab === 'reconcile' ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
-              {/* Internal Side */}
+              {/* Internal */}
               <div onDragOver={(e) => {e.preventDefault(); setIsDraggingInternal(true)}} onDragLeave={() => setIsDraggingInternal(false)} onDrop={(e) => {e.preventDefault(); setIsDraggingInternal(false); processFile(e.dataTransfer.files[0], 'internal')}}
-                className={`bg-white rounded-[2.5rem] border-2 flex flex-col overflow-hidden relative ${isDraggingInternal ? 'border-blue-500 bg-blue-50' : 'border-transparent'}`}>
+                className={`bg-white rounded-[2.5rem] shadow-sm border-2 transition-all flex flex-col overflow-hidden relative ${isDraggingInternal ? 'border-blue-500 bg-blue-50' : 'border-transparent'}`}>
                 <div className="p-5 bg-blue-600 text-white space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="font-black text-[15px] uppercase flex items-center gap-2"><Database size={18}/> บันทึกบัญชี ({internalRecords.length})</span>
                     <div className="flex gap-2">
-                      {internalRecords.length > 0 && <button onClick={() => {if(confirm('ล้างฝั่งบัญชี?')) setInternalRecords([]);}} className="bg-rose-500/20 px-3 py-1.5 rounded-xl border border-rose-500/30"><Trash2 size={12}/></button>}
+                      {internalRecords.length > 0 && <button onClick={() => {if(confirm('ล้างข้อมูลฝั่งบัญชี?')) setInternalRecords([]);}} className="bg-rose-500/20 px-3 py-1.5 rounded-xl border border-rose-500/30"><Trash2 size={12}/></button>}
                       <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 uppercase"><Plus size={12} className="inline mr-1"/> นำเข้า<input type="file" onChange={(e) => processFile(e.target.files[0], 'internal')} className="hidden" accept=".xlsx, .xls" /></label>
                     </div>
                   </div>
-                  <div className="flex gap-2 text-[10px]">
-                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 rounded-xl pl-8 pr-2 py-2 outline-none" /></div>
-                    <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-1 text-white/40"/><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent p-1 outline-none" /><span className="opacity-30">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent p-1 outline-none" /></div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-2 py-2 text-[10px] outline-none placeholder:text-white/30" /></div>
+                    <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20 text-white/70"><Calendar size={12} className="ml-2"/><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1" />- <input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1" /></div>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/30">
@@ -248,25 +255,25 @@ const BankReconciliationApp = () => {
                 </div>
               </div>
 
-              {/* Bank Side */}
+              {/* Bank */}
               <div onDragOver={(e) => {e.preventDefault(); setIsDraggingBank(true)}} onDragLeave={() => setIsDraggingBank(false)} onDrop={(e) => {e.preventDefault(); setIsDraggingBank(false); processFile(e.dataTransfer.files[0], 'bank')}}
-                className={`bg-white rounded-[2.5rem] border-2 flex flex-col overflow-hidden relative ${isDraggingBank ? 'border-slate-800 bg-slate-100' : 'border-transparent'}`}>
+                className={`bg-white rounded-[2.5rem] shadow-sm border-2 transition-all flex flex-col overflow-hidden relative ${isDraggingBank ? 'border-slate-800 bg-slate-100' : 'border-transparent'}`}>
                 <div className="p-5 bg-slate-800 text-white space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="font-black text-[15px] uppercase flex items-center gap-2"><Landmark size={18}/> ธนาคาร ({bankStatement.length})</span>
                     <div className="flex gap-2">
-                      {bankStatement.length > 0 && <button onClick={() => {if(confirm('ล้างฝั่งธนาคาร?')) setBankStatement([]);}} className="bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20"><Trash2 size={12}/></button>}
+                      {bankStatement.length > 0 && <button onClick={() => {if(confirm('ล้างข้อมูลฝั่งธนาคาร?')) setBankStatement([]);}} className="bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20"><Trash2 size={12}/></button>}
                       <label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 uppercase"><Plus size={12} className="inline mr-1"/> นำเข้า<input type="file" onChange={(e) => processFile(e.target.files[0], 'bank')} className="hidden" accept=".xlsx, .xls" /></label>
                     </div>
                   </div>
-                  <div className="flex gap-2 text-[10px]">
-                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 rounded-xl pl-8 pr-2 py-2 outline-none" /></div>
-                    <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10"><Calendar size={12} className="ml-1 text-white/40"/><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent p-1 outline-none" /><span className="opacity-10">-</span><input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent p-1 outline-none" /></div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-2 py-2 text-[10px] outline-none placeholder:text-white/20" /></div>
+                    <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10 text-white/50"><Calendar size={12}/><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1" />- <input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1" /></div>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/30">
                   {filteredBank.map(item => (
-                    <div key={item.id} onClick={() => toggleSelection(item, 'bank')} className={`p-4 rounded-2xl border-2 cursor-pointer flex justify-between items-center transition-all ${selectedBank.some(i => i.id === item.id) ? 'border-slate-800 bg-slate-100 shadow-md' : 'border-white bg-white hover:border-slate-300'}`}>
+                    <div key={item.id} onClick={() => toggleSelection(item, 'bank')} className={`p-4 rounded-2xl border-2 cursor-pointer flex justify-between items-center transition-all ${selectedBank.some(i => i.id === item.id) ? 'border-slate-800 bg-slate-100 shadow-lg' : 'border-white bg-white hover:border-slate-300'}`}>
                       <div className="min-w-0 pr-4"><span className="font-bold text-slate-700 text-xs line-clamp-1">{item.docNo}</span><span className="text-[9px] text-slate-400 font-bold uppercase">{item.date}</span></div>
                       <span className={`text-xl font-black tabular-nums ${item.amount < 0 ? 'text-red-500' : 'text-slate-900'}`}>{formatAccounting(item.amount)}</span>
                     </div>
@@ -275,7 +282,7 @@ const BankReconciliationApp = () => {
               </div>
             </div>
 
-            {/* Summary */}
+            {/* Summary Bar */}
             <div className="bg-white p-8 rounded-[3.5rem] shadow-xl flex flex-col md:flex-row justify-around items-center border border-slate-100 gap-6">
               <div className="text-center"><div className="text-slate-400 text-[10px] font-black uppercase">บัญชีที่เลือก</div><div className="text-5xl font-black text-blue-600">{formatAccounting(internalSum)}</div></div>
               <div className="flex flex-col items-center bg-slate-50 px-16 py-6 rounded-[2.5rem] border min-w-[380px]">
@@ -289,17 +296,17 @@ const BankReconciliationApp = () => {
             </div>
           </div>
         ) : (
-          /* History Tab */
+          /* Confirmed Matches Tab */
           <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden min-h-[550px] flex flex-col">
             <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase"><span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span></div>
-            <div className="p-8 space-y-6 overflow-y-auto flex-1">
+            <div className="p-8 space-y-6 overflow-y-auto flex-1 bg-slate-50/20">
               {confirmedMatches.map(m => (
                 <div key={m.id} className="group bg-white border border-slate-100 rounded-[2rem] p-8 grid grid-cols-4 items-center shadow-sm relative hover:border-blue-300">
                   <div className="space-y-3">{m.internals.map(i => <div key={i.id} className="flex flex-col"><span className="text-[10px] text-slate-400 font-black">{i.date}</span><span className="text-sm font-bold text-blue-700">{i.docNo}</span></div>)}</div>
                   <div className="text-center font-black text-2xl border-r">{formatAccounting(m.totalAmount)}</div>
                   <div className="pl-8 space-y-3">{m.banks.map(b => <div key={b.id} className="flex flex-col"><span className="text-[10px] text-slate-400 font-black">{b.date}</span><span className="text-sm font-bold text-slate-800">{b.docNo}</span></div>)}</div>
                   <div className="text-right font-black text-2xl">{formatAccounting(m.totalAmount)}</div>
-                  <button onClick={() => {setConfirmedMatches(prev => prev.filter(x => x.id !== m.id)); setInternalRecords(p => [...p, ...m.internals].sort(sortByDate)); setBankStatement(p => [...p, ...m.banks].sort(sortByDate));}} className="absolute -right-3 -top-3 bg-white text-rose-500 border-2 rounded-full p-2.5 opacity-0 group-hover:opacity-100 shadow-xl"><Trash2 size={18}/></button>
+                  <button onClick={() => { setConfirmedMatches(prev => prev.filter(x => x.id !== m.id)); setInternalRecords(p => [...p, ...m.internals].sort(sortByDate)); setBankStatement(p => [...p, ...m.banks].sort(sortByDate)); }} className="absolute -right-3 -top-3 bg-white text-rose-500 border-2 rounded-full p-2.5 opacity-0 group-hover:opacity-100 shadow-xl transition-all"><Trash2 size={18}/></button>
                 </div>
               ))}
             </div>
