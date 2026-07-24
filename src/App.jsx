@@ -100,7 +100,7 @@ const BankReconcileApp = () => {
           if (!docNo || docNo === 'รวม' || docNo.trim() === '') return null;
           let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
           
-          const expenseKeywords = ['exp', 'dp']; 
+          const expenseKeywords = ['exp', 'dp', 'pa',]; 
           const isExpense = expenseKeywords.some(k => docNo.toLowerCase().includes(k));
           if (isExpense && amount > 0) amount = -amount;
 
