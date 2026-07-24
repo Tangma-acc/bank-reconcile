@@ -1,150 +1,256 @@
-import React, { useState, useMemo } from 'react';
-import {  Download,  Search,  Plus,  Database, Landmark, FileUp, Trash2, ArrowRightLeft, FilterX, Calendar, CheckCircle2 } from 'lucide-react';
-import * as XLSX from 'xlsx'; // ต้องติดตั้ง npm install xlsx
+import React, { useState, useMemo, useCallback } from 'react';
+import * as XLSX from 'xlsx';
+import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar, FileUp, Database, Landmark, FilterX } from 'lucide-react';
+import ExcelJS from 'exceljs';
 
-const BankReconciliation = () => {
-  // --- States ---
+const BankReconcileApp = () => {
+  const [activeTab, setActiveTab] = useState('reconcile');
   const [internalRecords, setInternalRecords] = useState([]);
   const [bankStatement, setBankStatement] = useState([]);
   const [selectedInternal, setSelectedInternal] = useState([]);
   const [selectedBank, setSelectedBank] = useState([]);
   const [confirmedMatches, setConfirmedMatches] = useState([]);
-  const [activeTab, setActiveTab] = useState('reconcile'); // 'reconcile' | 'confirmed'
 
-  // Search & Filter States
-  const [searchInternal, setSearchInternal] = useState('');
-  const [searchBank, setSearchBank] = useState('');
-  const [internalStartDate, setInternalStartDate] = useState('');
-  const [internalEndDate, setInternalEndDate] = useState('');
-  const [bankStartDate, setBankStartDate] = useState('');
-  const [bankEndDate, setBankEndDate] = useState('');
-
-  // Drag and Drop States
+  // --- Drag & Drop States ---
   const [isDraggingInternal, setIsDraggingInternal] = useState(false);
   const [isDraggingBank, setIsDraggingBank] = useState(false);
 
+  // --- Search & Filter States ---
+  const [searchInternal, setSearchInternal] = useState('');
+  const [internalStartDate, setInternalStartDate] = useState('');
+  const [internalEndDate, setInternalEndDate] = useState('');
+  const [searchBank, setSearchBank] = useState('');
+  const [bankStartDate, setBankStartDate] = useState('');
+  const [bankEndDate, setBankEndDate] = useState('');
+
   // --- Helpers ---
+  const formatExcelDate = (val) => {
+    if (!val) return '-';
+    let date;
+    if (typeof val === 'number') {
+      date = new Date(Math.round((val - 25569) * 86400 * 1000));
+    } else if (typeof val === 'string') {
+      const parts = val.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+      } else {
+        date = new Date(val);
+      }
+    } else {
+      date = new Date(val);
+    }
+    if (isNaN(date.getTime())) return String(val);
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+  };
+
+  const parseDisplayDate = (dateStr) => {
+    if (!dateStr || dateStr === '-') return null;
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return null;
+    return new Date(parts[2], parts[1] - 1, parts[0], 0, 0, 0);
+  };
+
+  const sortByDate = (a, b) => {
+    const dateA = parseDisplayDate(a.date);
+    const dateB = parseDisplayDate(b.date);
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateA.getTime() - dateB.getTime();
+  };
+
   const formatAccounting = (num) => {
-    return new Intl.NumberFormat('th-TH', {
+    if (num === 0 || num === null || num === undefined) return "0.00";
+    const formatted = Math.abs(num).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(num);
+    });
+    return num < 0 ? `(${formatted})` : formatted;
   };
 
-  const sortByDate = (a, b) => new Date(a.date) - new Date(b.date);
-
-  // --- Logic Functions ---
-  const processFile = (file, type) => {
+  // --- Core Processing ---
+  const processFile = useCallback((file, type) => {
     if (!file) return;
+    const isInternal = type === 'internal';
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(worksheet);
+    
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target.result);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: false });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Mapping ข้อมูล (ปรับตามโครงสร้าง Excel ของคุณ)
-      const mappedData = json.map((row, index) => ({
-        id: `${type}-${Date.now()}-${index}`,
-        date: row.Date || row['วันที่'] || '',
-        docNo: row.DocNo || row['เลขที่เอกสาร'] || row['Description'] || 'N/A',
-        description: row.Description || row['รายละเอียด'] || '',
-        amount: parseFloat(row.Amount || row['ยอดเงิน'] || 0),
-        status: row.Status || ''
-      }));
+      const searchKeys = isInternal ? ['เลขที่เอกสาร', 'ต้องชำระ'] : ['วันที่', 'ถอนเงิน/ฝากเงิน'];
+      let headerIdx = rows.findIndex(row => 
+        Array.isArray(row) && searchKeys.every(k => row.some(c => String(c).includes(k)))
+      );
+      if (headerIdx === -1) headerIdx = 0;
 
-      if (type === 'internal') {
-        setInternalRecords(prev => [...prev, ...mappedData].sort(sortByDate));
-      } else {
-        setBankStatement(prev => [...prev, ...mappedData].sort(sortByDate));
-      }
+      const headers = rows[headerIdx];
+      const dataRows = rows.slice(headerIdx + 1);
+
+      const formattedData = dataRows.map((row, index) => {
+        const item = {};
+        headers.forEach((h, i) => { if (h) item[String(h).trim()] = row[i]; });
+
+        if (isInternal) {
+          const docNo = String(item['เลขที่เอกสาร'] || '');
+          if (!docNo || docNo === 'รวม' || docNo.trim() === '') return null;
+          let amount = parseFloat(String(item['ต้องชำระ'] || 0).replace(/,/g, ''));
+          
+          const expenseKeywords = ['exp', 'dp', 'pa',]; 
+          const isExpense = expenseKeywords.some(k => docNo.toLowerCase().includes(k));
+          if (isExpense && amount > 0) amount = -amount;
+
+          return { id: `peak-${Date.now()}-${index}`, docNo, date: formatExcelDate(item['วันที่'] || item['วันที่ออก']), description: item['คำอธิบาย'] || '', status: item['สถานะ'] || '', amount };
+        } else {
+          const dateVal = item['วันที่'];
+          const amountVal = item['ถอนเงิน/ฝากเงิน'];
+          if (!dateVal || amountVal === undefined || amountVal === null || amountVal === "") return null;
+          let amount = parseFloat(String(amountVal).replace(/[( )]/g, '').replace(/,/g, ''));
+          if (String(amountVal).includes('(')) amount = -Math.abs(amount);
+          return { id: `bank-${Date.now()}-${index}`, docNo: `${item['รายละเอียด'] || item['รายการ'] || 'STM'}${item['เวลา'] ? ` [${item['เวลา']}]` : ''}`, date: formatExcelDate(dateVal), amount };
+        }
+      }).filter(i => i !== null && !isNaN(i.amount) && i.amount !== 0);
+
+      if (isInternal) setInternalRecords(prev => [...prev, ...formattedData].sort(sortByDate));
+      else setBankStatement(prev => [...prev, ...formattedData].sort(sortByDate));
     };
     reader.readAsArrayBuffer(file);
-  };
+  }, []);
 
-  const toggleSelection = (item, type) => {
-    if (type === 'internal') {
-      setSelectedInternal(prev => 
-        prev.find(i => i.id === item.id) 
-          ? prev.filter(i => i.id !== item.id) 
-          : [...prev, item]
-      );
-    } else {
-      setSelectedBank(prev => 
-        prev.find(i => i.id === item.id) 
-          ? prev.filter(i => i.id !== item.id) 
-          : [...prev, item]
-      );
-    }
-  };
+  // --- Sum Calculations ---
+  const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
+  const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
+  const diff = Math.abs(internalSum - bankSum);
 
-  const confirmMatch = () => {
-    const newMatch = {
-      id: Date.now(),
-      internals: [...selectedInternal],
-      banks: [...selectedBank],
-      totalAmount: selectedInternal.reduce((sum, i) => sum + i.amount, 0),
-      matchDate: new Date().toLocaleDateString()
-    };
-
-    setConfirmedMatches(prev => [newMatch, ...prev]);
-    setInternalRecords(prev => prev.filter(i => !selectedInternal.find(s => s.id === i.id)));
-    setBankStatement(prev => prev.filter(b => !selectedBank.find(s => s.id === b.id)));
-    setSelectedInternal([]);
-    setSelectedBank([]);
-  };
-
-  const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(confirmedMatches.map(m => ({
-      'Match ID': m.id,
-      'Internal Docs': m.internals.map(i => i.docNo).join(', '),
-      'Bank Docs': m.banks.map(b => b.docNo).join(', '),
-      'Amount': m.totalAmount,
-      'Date': m.matchDate
-    })));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Reconciled");
-    XLSX.writeFile(workbook, "reconciliation_report.xlsx");
-  };
-
-  // --- Drag & Drop Handlers ---
+  // --- Handlers ---
   const onDragOver = (e, type) => {
-    e.preventDefault();
+    e.preventDefault(); e.stopPropagation();
     if (type === 'internal') setIsDraggingInternal(true);
     else setIsDraggingBank(true);
   };
 
   const onDragLeave = (e, type) => {
+    e.preventDefault(); e.stopPropagation();
     if (type === 'internal') setIsDraggingInternal(false);
     else setIsDraggingBank(false);
   };
 
   const onDrop = (e, type) => {
-    e.preventDefault();
-    setIsDraggingInternal(false);
-    setIsDraggingBank(false);
-    const file = e.dataTransfer.files[0];
-    processFile(file, type);
+    e.preventDefault(); e.stopPropagation();
+    setIsDraggingInternal(false); setIsDraggingBank(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0], type);
+    }
   };
 
-  // --- Filtering ---
-  const filteredInternal = internalRecords.filter(item => 
-    item.docNo.toLowerCase().includes(searchInternal.toLowerCase()) &&
-    (!internalStartDate || item.date >= internalStartDate) &&
-    (!internalEndDate || item.date <= internalEndDate)
-  );
+  // --- Filtering (จุดที่ปรับปรุง Logic ตามที่ต้องการ) ---
+  const filteredInternal = useMemo(() => {
+    return internalRecords.filter(item => {
+      const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal) || item.docNo.toLowerCase().includes(searchInternal.toLowerCase());
+      const itemDate = parseDisplayDate(item.date);
+      let matchesDate = true;
+      if (itemDate) {
+        if (internalStartDate) {
+          const start = new Date(internalStartDate); start.setHours(0,0,0,0);
+          if (itemDate < start) matchesDate = false;
+        }
+        if (internalEndDate) {
+          const end = new Date(internalEndDate); end.setHours(0,0,0,0);
+          if (itemDate > end) matchesDate = false;
+        }
+      }
 
-  const filteredBank = bankStatement.filter(item => 
-    item.docNo.toLowerCase().includes(searchBank.toLowerCase()) &&
-    (!bankStartDate || item.date >= bankStartDate) &&
-    (!bankEndDate || item.date <= bankEndDate)
-  );
+      // Smart Filter: ถ้าฝั่ง Bank เลือกไว้ ให้แสดงเฉพาะยอดที่ตรงกัน (Absolute) หรือรายการที่เลือกอยู่แล้ว
+      let matchesSmart = true;
+      if (selectedBank.length > 0) {
+        const isSelected = selectedInternal.some(s => s.id === item.id);
+        const isMatch = Math.abs(Math.abs(item.amount) - Math.abs(bankSum)) < 0.01;
+        matchesSmart = isSelected || isMatch;
+      }
 
-  // --- Calculations ---
-  const internalSum = selectedInternal.reduce((sum, i) => sum + i.amount, 0);
-  const bankSum = selectedBank.reduce((sum, i) => sum + i.amount, 0);
-  const diff = Math.abs(internalSum - bankSum);
+      return matchesSearch && matchesDate && matchesSmart;
+    });
+  }, [internalRecords, searchInternal, internalStartDate, internalEndDate, selectedBank, bankSum, selectedInternal]);
+
+  const filteredBank = useMemo(() => {
+    return bankStatement.filter(item => {
+      const matchesSearch = searchBank === '' || Math.abs(item.amount).toString().includes(searchBank) || item.docNo.toLowerCase().includes(searchBank.toLowerCase());
+      const itemDate = parseDisplayDate(item.date);
+      let matchesDate = true;
+      if (itemDate) {
+        if (bankStartDate) {
+          const start = new Date(bankStartDate); start.setHours(0,0,0,0);
+          if (itemDate < start) matchesDate = false;
+        }
+        if (bankEndDate) {
+          const end = new Date(bankEndDate); end.setHours(0,0,0,0);
+          if (itemDate > end) matchesDate = false;
+        }
+      }
+
+      // Smart Filter: ถ้าฝั่ง Internal เลือกไว้ ให้แสดงเฉพาะยอดที่ตรงกัน (Absolute) หรือรายการที่เลือกอยู่แล้ว
+      let matchesSmart = true;
+      if (selectedInternal.length > 0) {
+        const isSelected = selectedBank.some(s => s.id === item.id);
+        const isMatch = Math.abs(Math.abs(item.amount) - Math.abs(internalSum)) < 0.01;
+        matchesSmart = isSelected || isMatch;
+      }
+
+      return matchesSearch && matchesDate && matchesSmart;
+    });
+  }, [bankStatement, searchBank, bankStartDate, bankEndDate, selectedInternal, internalSum, selectedBank]);
+
+  const toggleSelection = (item, type) => {
+    if (type === 'internal') setSelectedInternal(prev => prev.some(i => i.id === item.id) ? prev.filter(i => i.id !== item.id) : [...prev, item]);
+    else setSelectedBank(prev => prev.some(i => i.id === item.id) ? prev.filter(i => i.id !== item.id) : [...prev, item]);
+  };
+
+  const confirmMatch = () => {
+    if (diff < 0.01 && (selectedInternal.length > 0 || selectedBank.length > 0)) {
+      const newMatch = { id: Date.now(), internals: [...selectedInternal], banks: [...selectedBank], totalAmount: internalSum };
+      setConfirmedMatches(prev => [newMatch, ...prev]);
+      setInternalRecords(prev => prev.filter(item => !selectedInternal.some(s => s.id === item.id)));
+      setBankStatement(prev => prev.filter(item => !selectedBank.some(s => s.id === item.id)));
+      setSelectedInternal([]); setSelectedBank([]);
+    }
+  };
+
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Report');
+    const accountingFormat = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
+    const headers = ["#", "วันที่", "เลขที่เอกสาร/การจับคู่", "รายละเอียด", "ยอดเงิน", "สถานะ"];
+    const headerRow = worksheet.addRow(headers);
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+      cell.font = { bold: true };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
+    const combinedData = [];
+    confirmedMatches.forEach(match => {
+      match.banks.forEach(bankItem => combinedData.push({ ...bankItem, matchedDocNo: match.internals.map(i => i.docNo).join(', '), status: "กระทบยอดแล้ว" }));
+    });
+    bankStatement.forEach(bankItem => combinedData.push({ ...bankItem, matchedDocNo: "", status: "ยังไม่กระทบยอด" }));
+    combinedData.sort(sortByDate);
+    combinedData.forEach((entry, idx) => {
+      const row = worksheet.addRow([idx + 1, entry.date, entry.matchedDocNo, entry.docNo, entry.amount, entry.status]);
+      row.eachCell((cell, col) => {
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        if (col === 5) { cell.numFmt = accountingFormat; cell.alignment = { horizontal: 'right' }; }
+        if (col === 6) { cell.font = { color: { argb: entry.status === "ยังไม่กระทบยอด" ? 'FFFF0000' : 'FF008000' }, bold: true }; }
+      });
+    });
+    worksheet.columns = [{ width: 6 }, { width: 14 }, { width: 35 }, { width: 45 }, { width: 20 }, { width: 18 }];
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Bank_Reconcile_${new Date().toISOString().split('T')[0]}.xlsx`; a.click();
+  };
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-6 font-sans text-slate-700">
