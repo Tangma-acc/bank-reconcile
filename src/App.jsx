@@ -294,7 +294,7 @@ const BankReconcileApp = () => {
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest flex items-center gap-2">
-                        <Database size={18}/> รายการบันทึกบัญชี ({filteredInternal.length}/{internalRecords.length})
+                        <Database size={18}/> รายการบันทึกบัญชี ({internalRecords.length})
                       </span>
                       <label htmlFor="internal-upload-btn" className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
                         <Plus size={12} className="inline mr-1"/> นำเข้า
@@ -357,7 +357,7 @@ const BankReconcileApp = () => {
                   <div className="p-5 bg-slate-800 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest text-slate-300 flex items-center gap-2">
-                        <Landmark size={18}/> รายการธนาคาร ({filteredBank.length}/{bankStatement.length})
+                        <Landmark size={18}/> รายการธนาคาร ({bankStatement.length})
                       </span>
                       <label htmlFor="bank-upload-btn" className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
                         <Plus size={12} className="inline mr-1"/> นำเข้า
