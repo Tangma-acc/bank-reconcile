@@ -1,9 +1,21 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar, FileUp, Database, Landmark, FilterX } from 'lucide-react';
+import { 
+  Plus, 
+  ArrowRightLeft, 
+  Trash2, 
+  Download, 
+  Search, 
+  Calendar, 
+  FileUp, 
+  Database, 
+  Landmark, 
+  FilterX, 
+  CheckCircle2 
+} from 'lucide-react';
 import ExcelJS from 'exceljs';
 
-const BankReconcileApp = () => {
+const BankReconciliation = () => {
   const [activeTab, setActiveTab] = useState('reconcile');
   const [internalRecords, setInternalRecords] = useState([]);
   const [bankStatement, setBankStatement] = useState([]);
@@ -147,7 +159,7 @@ const BankReconcileApp = () => {
     }
   };
 
-  // --- Filtering (จุดที่ปรับปรุง Logic ตามที่ต้องการ) ---
+  // --- Filtering ---
   const filteredInternal = useMemo(() => {
     return internalRecords.filter(item => {
       const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal) || item.docNo.toLowerCase().includes(searchInternal.toLowerCase());
@@ -164,14 +176,12 @@ const BankReconcileApp = () => {
         }
       }
 
-      // Smart Filter: ถ้าฝั่ง Bank เลือกไว้ ให้แสดงเฉพาะยอดที่ตรงกัน (Absolute) หรือรายการที่เลือกอยู่แล้ว
       let matchesSmart = true;
       if (selectedBank.length > 0) {
         const isSelected = selectedInternal.some(s => s.id === item.id);
         const isMatch = Math.abs(Math.abs(item.amount) - Math.abs(bankSum)) < 0.01;
         matchesSmart = isSelected || isMatch;
       }
-
       return matchesSearch && matchesDate && matchesSmart;
     });
   }, [internalRecords, searchInternal, internalStartDate, internalEndDate, selectedBank, bankSum, selectedInternal]);
@@ -192,14 +202,12 @@ const BankReconcileApp = () => {
         }
       }
 
-      // Smart Filter: ถ้าฝั่ง Internal เลือกไว้ ให้แสดงเฉพาะยอดที่ตรงกัน (Absolute) หรือรายการที่เลือกอยู่แล้ว
       let matchesSmart = true;
       if (selectedInternal.length > 0) {
         const isSelected = selectedBank.some(s => s.id === item.id);
         const isMatch = Math.abs(Math.abs(item.amount) - Math.abs(internalSum)) < 0.01;
         matchesSmart = isSelected || isMatch;
       }
-
       return matchesSearch && matchesDate && matchesSmart;
     });
   }, [bankStatement, searchBank, bankStartDate, bankEndDate, selectedInternal, internalSum, selectedBank]);
@@ -319,7 +327,7 @@ const BankReconcileApp = () => {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none placeholder:text-white/30" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหาด้วยจำนวนเงินหรือเลขที่..." value={searchInternal} onChange={e => setSearchInternal(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none placeholder:text-white/30" /></div>
                       <div className="flex bg-white/10 rounded-xl p-1 items-center border border-white/20"><Calendar size={12} className="ml-2 text-white/50" /><input type="date" value={internalStartDate} onChange={e => setInternalStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /><span className="text-white/50">-</span><input type="date" value={internalEndDate} onChange={e => setInternalEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none" /></div>
                     </div>
                   </div>
@@ -389,7 +397,7 @@ const BankReconcileApp = () => {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหา..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none placeholder:text-white/20" /></div>
+                      <div className="relative flex-1"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" /><input type="text" placeholder="ค้นหาด้วยจำนวนเงินหรือรายละเอียด..." value={searchBank} onChange={e => setSearchBank(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-[10px] outline-none placeholder:text-white/20" /></div>
                       <div className="flex bg-white/5 rounded-xl p-1 items-center border border-white/10"><Calendar size={12} className="text-white/30" /><input type="date" value={bankStartDate} onChange={e => setBankStartDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /><span className="text-white/10">-</span><input type="date" value={bankEndDate} onChange={e => setBankEndDate(e.target.value)} className="bg-transparent text-[9px] font-bold p-1 outline-none opacity-60" /></div>
                     </div>
                   </div>
