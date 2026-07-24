@@ -235,9 +235,9 @@ const BankReconciliationApp = () => {
               >
                 <div className="p-5 bg-blue-600 text-white space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="font-black text-[15px] uppercase flex items-center gap-2"><Database size={18}/> บันทึกบัญชี ({internalRecords.length})</span>
+                    <span className="font-black text-[15px] uppercase flex items-center gap-2"><Database size={18}/> รายการบันทึกบัญชี ({internalRecords.length})</span>
                     <div className="flex gap-2">
-                      {internalRecords.length > 0 && <button onClick={() => {if(confirm('ล้างข้อมูลฝั่งบัญชี?')) setInternalRecords([]);}} className="bg-rose-500/20 px-3 py-1.5 rounded-xl border border-rose-500/30 hover:bg-rose-500"><Trash2 size={12}/></button>}
+                      {internalRecords.length > 0 && <button onClick={() => {if(confirm('ล้างข้อมูลฝั่งบัญชี?')) setInternalRecords([]);}} className="bg-rose-500 text-white px-4 py-1.5 rounded-xl text-[10px] font-black hover:bg-rose-600 transition-all uppercase">ล้าง</button>}
                       <label className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 uppercase"><Plus size={12} className="inline mr-1"/> นำเข้า<input type="file" onChange={(e) => processFile(e.target.files[0], 'internal')} className="hidden" /></label>
                     </div>
                   </div>
@@ -286,9 +286,9 @@ const BankReconciliationApp = () => {
               >
                 <div className="p-5 bg-slate-800 text-white space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="font-black text-[15px] uppercase flex items-center gap-2"><Landmark size={18}/> ธนาคาร ({bankStatement.length})</span>
+                    <span className="font-black text-[15px] uppercase flex items-center gap-2"><Landmark size={18}/> รายการธนาคาร ({bankStatement.length})</span>
                     <div className="flex gap-2">
-                      {bankStatement.length > 0 && <button onClick={() => {if(confirm('ล้างข้อมูลฝั่งธนาคาร?')) setBankStatement([]);}} className="bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20 hover:bg-rose-500"><Trash2 size={12}/></button>}
+                      {bankStatement.length > 0 && <button onClick={() => {if(confirm('ล้างข้อมูลฝั่งธนาคาร?')) setBankStatement([]);}} className="bg-rose-500 text-white px-4 py-1.5 rounded-xl text-[10px] font-black hover:bg-rose-600 transition-all uppercase">ล้าง</button>}
                       <label className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 uppercase"><Plus size={12} className="inline mr-1"/> นำเข้า<input type="file" onChange={(e) => processFile(e.target.files[0], 'bank')} className="hidden" /></label>
                     </div>
                   </div>
