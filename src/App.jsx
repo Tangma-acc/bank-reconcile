@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar, FileUp, Database, Landmark } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Download, Search, Calendar, FileUp, Database, Landmark, FilterX } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
 const BankReconcileApp = () => {
@@ -121,6 +121,11 @@ const BankReconcileApp = () => {
     reader.readAsArrayBuffer(file);
   }, []);
 
+  // --- Sum Calculations ---
+  const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
+  const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
+  const diff = Math.abs(internalSum - bankSum);
+
   // --- Handlers ---
   const onDragOver = (e, type) => {
     e.preventDefault(); e.stopPropagation();
@@ -142,7 +147,7 @@ const BankReconcileApp = () => {
     }
   };
 
-  // --- Filtering ---
+  // --- Filtering (จุดที่ปรับปรุง Logic ตามที่ต้องการ) ---
   const filteredInternal = useMemo(() => {
     return internalRecords.filter(item => {
       const matchesSearch = searchInternal === '' || Math.abs(item.amount).toString().includes(searchInternal) || item.docNo.toLowerCase().includes(searchInternal.toLowerCase());
@@ -158,9 +163,18 @@ const BankReconcileApp = () => {
           if (itemDate > end) matchesDate = false;
         }
       }
-      return matchesSearch && matchesDate;
+
+      // Smart Filter: ถ้าฝั่ง Bank เลือกไว้ ให้แสดงเฉพาะยอดที่ตรงกัน (Absolute) หรือรายการที่เลือกอยู่แล้ว
+      let matchesSmart = true;
+      if (selectedBank.length > 0) {
+        const isSelected = selectedInternal.some(s => s.id === item.id);
+        const isMatch = Math.abs(Math.abs(item.amount) - Math.abs(bankSum)) < 0.01;
+        matchesSmart = isSelected || isMatch;
+      }
+
+      return matchesSearch && matchesDate && matchesSmart;
     });
-  }, [internalRecords, searchInternal, internalStartDate, internalEndDate]);
+  }, [internalRecords, searchInternal, internalStartDate, internalEndDate, selectedBank, bankSum, selectedInternal]);
 
   const filteredBank = useMemo(() => {
     return bankStatement.filter(item => {
@@ -177,13 +191,18 @@ const BankReconcileApp = () => {
           if (itemDate > end) matchesDate = false;
         }
       }
-      return matchesSearch && matchesDate;
-    });
-  }, [bankStatement, searchBank, bankStartDate, bankEndDate]);
 
-  const internalSum = useMemo(() => selectedInternal.reduce((acc, curr) => acc + curr.amount, 0), [selectedInternal]);
-  const bankSum = useMemo(() => selectedBank.reduce((acc, curr) => acc + curr.amount, 0), [selectedBank]);
-  const diff = Math.abs(internalSum - bankSum);
+      // Smart Filter: ถ้าฝั่ง Internal เลือกไว้ ให้แสดงเฉพาะยอดที่ตรงกัน (Absolute) หรือรายการที่เลือกอยู่แล้ว
+      let matchesSmart = true;
+      if (selectedInternal.length > 0) {
+        const isSelected = selectedBank.some(s => s.id === item.id);
+        const isMatch = Math.abs(Math.abs(item.amount) - Math.abs(internalSum)) < 0.01;
+        matchesSmart = isSelected || isMatch;
+      }
+
+      return matchesSearch && matchesDate && matchesSmart;
+    });
+  }, [bankStatement, searchBank, bankStartDate, bankEndDate, selectedInternal, internalSum, selectedBank]);
 
   const toggleSelection = (item, type) => {
     if (type === 'internal') setSelectedInternal(prev => prev.some(i => i.id === item.id) ? prev.filter(i => i.id !== item.id) : [...prev, item]);
@@ -247,9 +266,16 @@ const BankReconcileApp = () => {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex gap-4 mb-6 ml-2">
+        <div className="flex gap-4 mb-6 ml-2 items-center">
           <button onClick={() => setActiveTab('reconcile')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all ${activeTab === 'reconcile' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>รอกระทบยอด</button>
           <button onClick={() => setActiveTab('confirmed')} className={`px-8 py-2.5 rounded-full font-black text-xs transition-all flex items-center gap-2 ${activeTab === 'confirmed' ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400'}`}>กระทบยอดแล้ว {confirmedMatches.length > 0 && <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">{confirmedMatches.length}</span>}</button>
+          
+          {/* ปุ่มล้างการเลือก (เพิ่มเพื่อให้ใช้งานง่ายขึ้น) */}
+          {(selectedInternal.length > 0 || selectedBank.length > 0) && (
+            <button onClick={() => {setSelectedInternal([]); setSelectedBank([])}} className="ml-auto text-rose-500 font-black text-[10px] uppercase flex items-center gap-1 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition-all">
+               <FilterX size={14} /> ล้างการเลือก
+            </button>
+          )}
         </div>
 
         {/* Main Content Area */}
@@ -267,7 +293,9 @@ const BankReconcileApp = () => {
                 >
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-black text-[15px] uppercase tracking-widest flex items-center gap-2"><Database size={18}/> รายการบันทึกบัญชี ({internalRecords.length})</span>
+                      <span className="font-black text-[15px] uppercase tracking-widest flex items-center gap-2">
+                        <Database size={18}/> รายการบันทึกบัญชี ({filteredInternal.length}/{internalRecords.length})
+                      </span>
                       <label htmlFor="internal-upload-btn" className="bg-white/20 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/30 hover:bg-white/40 transition-all uppercase">
                         <Plus size={12} className="inline mr-1"/> นำเข้า
                         <input id="internal-upload-btn" type="file" onChange={(e) => processFile(e.target.files[0], 'internal')} className="hidden" accept=".xlsx, .xls" />
@@ -328,7 +356,9 @@ const BankReconcileApp = () => {
                 >
                   <div className="p-5 bg-slate-800 text-white space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-black text-[15px] uppercase tracking-widest text-slate-300 flex items-center gap-2"><Landmark size={18}/> รายการธนาคาร ({bankStatement.length})</span>
+                      <span className="font-black text-[15px] uppercase tracking-widest text-slate-300 flex items-center gap-2">
+                        <Landmark size={18}/> รายการธนาคาร ({filteredBank.length}/{bankStatement.length})
+                      </span>
                       <label htmlFor="bank-upload-btn" className="bg-white/10 px-4 py-1.5 rounded-xl cursor-pointer text-[10px] font-black border border-white/10 hover:bg-white/20 transition-all uppercase">
                         <Plus size={12} className="inline mr-1"/> นำเข้า
                         <input id="bank-upload-btn" type="file" onChange={(e) => processFile(e.target.files[0], 'bank')} className="hidden" accept=".xlsx, .xls" />
@@ -395,7 +425,7 @@ const BankReconcileApp = () => {
               </div>
             </div>
           ) : (
-            /* Confirmed Tab Content (Same as before) */
+            /* Confirmed Tab Content */
             <div className="flex flex-col h-full gap-6">
               <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-[550px]">
                 <div className="p-6 bg-slate-50 border-b grid grid-cols-4 font-black text-[11px] text-slate-400 uppercase tracking-widest"><span>รายการบัญชี</span><span className="text-center">ยอดเงิน</span><span className="pl-8">รายการธนาคาร</span><span className="text-right">ยอดเงิน</span></div>
