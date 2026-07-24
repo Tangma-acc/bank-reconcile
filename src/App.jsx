@@ -308,7 +308,7 @@ const BankReconciliation = () => {
                   <div className="p-5 bg-blue-600 text-white space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-black text-[15px] uppercase tracking-widest flex items-center gap-2">
-                        <Database size={18}/> บันทึกบัญชี ({internalRecords.length})
+                        <Database size={18}/> รายการบันทึกบัญชี ({internalRecords.length})
                       </span>
                       <div className="flex gap-2">
                         {/* ปุ่มล้างฝั่งบัญชี */}
