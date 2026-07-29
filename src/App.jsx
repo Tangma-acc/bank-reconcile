@@ -258,7 +258,7 @@ const BankReconciliationApp = () => {
               className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all border ${isSmartFilterEnabled ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
             >
               {isSmartFilterEnabled ? <Zap size={14} fill="currentColor"/> : <ZapOff size={14}/>}
-              Smart Filter: {isSmartFilterEnabled ? 'ON' : 'OFF'}
+              Smart Matching: {isSmartFilterEnabled ? 'ON' : 'OFF'}
             </button>
 
             {(selectedInternal.length > 0 || selectedBank.length > 0) && (
