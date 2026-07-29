@@ -235,7 +235,7 @@ const BankReconciliationApp = () => {
           <h1 className="text-2xl font-black text-blue-900 italic uppercase">Bank Reconciliation</h1>
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-100 cursor-pointer shadow-sm">
-              <History size={16} /> นำเข้ารายงานเดิม
+              <History size={16} /> IMPORT Bank Reconciliation
               <input type="file" onChange={(e) => processReportFile(e.target.files[0])} className="hidden" />
             </label>
             <button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-black text-xs hover:bg-emerald-100 uppercase shadow-sm"><Download size={16} /> Export Excel</button>
