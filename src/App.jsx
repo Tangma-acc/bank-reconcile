@@ -144,7 +144,6 @@ const BankReconciliationApp = () => {
       });
       setBankStatement(prev => [...prev, ...newBankRecords].sort(sortByDate));
       setConfirmedMatches(prev => [...prev, ...newConfirmedMatches]);
-      alert(`นำเข้าสำเร็จ!`);
     };
     reader.readAsArrayBuffer(file);
   };
